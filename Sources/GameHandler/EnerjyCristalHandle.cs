@@ -590,6 +590,10 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
                                     DebugPfCnsl.println("Char doesn't have yang to buy it!!");
                                     TelegramBot.SendMessageTelegram("Karakterde para yok paraaaa");
 
+                                    //Close Yang Warning Dialog Panel
+                                    TimerGame.SleepRandom(500, 600);
+                                    inputGame.KeyDown(KeyboardInput.ScanCodeShort.ESCAPE);
+
                                     CloseSilahciShopPage();
                                     charThings.OpenCloseInventory(true);
                                     charThings.OpenCloseInventory(false);

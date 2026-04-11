@@ -299,8 +299,8 @@ namespace MusicPlayerApp.Sources
         public Rectangle RectSilahciOptionMarketiAc()
         {
             Point currentMetin2Icon = CheckGameScreenPlace();
-           // return new Rectangle(387 + currentMetin2Icon.X, 249 + currentMetin2Icon.Y, 19, 8);          
-            return new Rectangle(385 + currentMetin2Icon.X, 217 + currentMetin2Icon.Y, 19, 8);          
+            return new Rectangle(387 + currentMetin2Icon.X, 249 + currentMetin2Icon.Y, 19, 8);          
+           //return new Rectangle(385 + currentMetin2Icon.X, 217 + currentMetin2Icon.Y, 19, 8);          
         }
         public Rectangle RectSilahciShopPage()
         {
