@@ -61,7 +61,7 @@
           <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
         </dsig:Transforms>
         <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-        <dsig:DigestValue>P+bHBuWz08kZwT7QYaW+JRweRlrI/5jPqshC32nLso8=</dsig:DigestValue>
+        <dsig:DigestValue>x3EBDk4MROBmgx8OuBi3k839Gxn6FI0NwXAG0VXEm8w=</dsig:DigestValue>
       </hash>
     </dependentAssembly>
   </dependency>
@@ -1448,13 +1448,13 @@
       <dsig:DigestValue>OeQRvJtezun9NJveG3eOr3rEsGeE8b7c8SElkJ228DI=</dsig:DigestValue>
     </hash>
   </file>
-  <file name="Images\silahciOptionPage.png" size="392">
+  <file name="Images\silahciOptionPage.png" size="404">
     <hash>
       <dsig:Transforms>
         <dsig:Transform Algorithm="urn:schemas-microsoft-com:HashTransforms.Identity" />
       </dsig:Transforms>
       <dsig:DigestMethod Algorithm="http://www.w3.org/2000/09/xmldsig#sha256" />
-      <dsig:DigestValue>mkkJD171toSxD8p9OO4ufLBYAJzpOov0HEnvuV3nrfc=</dsig:DigestValue>
+      <dsig:DigestValue>OUJTxCvBIJpVuBtfRc0OT8IYX4kZJv7AXYSdYwdUviA=</dsig:DigestValue>
     </hash>
   </file>
   <file name="Images\silahciShop.png" size="481">
