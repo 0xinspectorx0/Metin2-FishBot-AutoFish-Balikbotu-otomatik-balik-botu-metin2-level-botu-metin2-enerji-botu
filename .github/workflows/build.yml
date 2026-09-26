@@ -211,7 +211,7 @@ jobs:
             local path="$1" local_file="$2" message="$3" content payload response
             content=$(base64 -w0 "$local_file")
             payload=$(jq -n --arg message "$message" --arg content "$content" --arg branch "ci-logs"               '{message:$message, content:$content, branch:$branch}')
-            response=$(printf '%s' "$payload" | gh api --method PUT               "/repos/$REPO/contents/$path" --input - 2>&1) || {
+            response=$(printf '%s' "$payload" | gh api --method PUT               "repos/$REPO/contents/$path" --input - 2>&1) || {
                 echo "GitHub Contents API upload failed for $path: $response"
                 echo "::error title=CI log upload failed::$path — $response"
                 return 1
