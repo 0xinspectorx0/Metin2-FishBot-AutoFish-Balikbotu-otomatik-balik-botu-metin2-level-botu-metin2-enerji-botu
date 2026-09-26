@@ -196,10 +196,19 @@ jobs:
           LOGNAME="build-$GITHUB_RUN_ID.log"
           ERRNAME="errors-$GITHUB_RUN_ID.txt"
 
+          # Boyut sınırı: git blob içeriği istek gövdesinde gittiği için log
+          # kırpılır (400 KB'lık ilk deneme API'den döndü). Ayrıca base64
+          # çözümlemesinde jq'nun bozulmaması için geçersiz UTF-8 baytları
+          # ayıklanır (iconv -c).
           : > build.log.tmp
-          if [ -f build.log ]; then tail -c 400000 build.log > build.log.tmp; fi
+          if [ -f build.log ]; then
+            tail -c 60000 build.log | iconv -c -f UTF-8 -t UTF-8 > build.log.tmp || tail -c 60000 build.log > build.log.tmp
+          fi
           : > derleme-hatalari.tmp
-          if [ -f derleme-hatalari.txt ]; then head -c 200000 derleme-hatalari.txt > derleme-hatalari.tmp; fi
+          if [ -f derleme-hatalari.txt ]; then
+            head -c 20000 derleme-hatalari.txt | iconv -c -f UTF-8 -t UTF-8 > derleme-hatalari.tmp || head -c 20000 derleme-hatalari.txt > derleme-hatalari.tmp
+          fi
+          echo "Log boyutu: $(wc -c < build.log.tmp) bayt, hata dosyası: $(wc -c < derleme-hatalari.tmp) bayt"
 
           if gh api "/repos/$REPO/contents/README.md?ref=ci-logs" --jq '.sha' > /dev/null 2>&1; then
             PARENT=$(gh api "/repos/$REPO/git/refs/heads/ci-logs" --jq '.object.sha')
@@ -212,9 +221,11 @@ jobs:
           B64ERR=$(base64 -w0 derleme-hatalari.tmp)
           TREE_JSON=$(printf '{"tree":[{"path":"README.md","mode":"100644","type":"blob","content":"Bu dal CI tanılama logları için kullanılır. Kod içermez.\n"},{"path":"%s","mode":"100644","type":"blob","content":"%s"},{"path":"%s","mode":"100644","type":"blob","content":"%s"}]}' "$LOGNAME" "$B64LOG" "$ERRNAME" "$B64ERR")
 
-          TREE_SHA=$(printf '%s' "$TREE_JSON" | gh api --method POST "/repos/$REPO/git/trees" --input - --jq '.sha') || {
-            echo "Tree oluşturulamadı; log yayımlanamıyor."; exit 0;
-          }
+          if ! TREE_SHA=$(printf '%s' "$TREE_JSON" | gh api --method POST "/repos/$REPO/git/trees" --input - --jq '.sha' 2>&1); then
+            echo "Tree oluşturulamadı: $TREE_SHA"
+            exit 0
+          fi
+          echo "tree=$TREE_SHA"
           # Commit gövdesi JSON olarak gönderilir: `gh api -f` alan değerlerini
           # sayıya çevirmeye çalıştığı için sha değerleri bozulabiliyor.
           if [ -n "${PARENT:-}" ]; then
