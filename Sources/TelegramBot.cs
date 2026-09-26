@@ -11,6 +11,7 @@ using Telegram.Bot;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
+using File = System.IO.File;
 
 namespace Metin2AutoFishCSharp.Sources
 {
