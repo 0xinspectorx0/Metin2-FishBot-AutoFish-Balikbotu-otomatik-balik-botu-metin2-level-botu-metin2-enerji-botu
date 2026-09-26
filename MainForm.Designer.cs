@@ -118,16 +118,14 @@ namespace MusicPlayerApp
             this.trackBarHp = new System.Windows.Forms.TrackBar();
             this.buttonLevelStart = new System.Windows.Forms.Button();
             this.tabPageTelegram = new System.Windows.Forms.TabPage();
-            this.label33 = new System.Windows.Forms.Label();
-            this.label32 = new System.Windows.Forms.Label();
-            this.textBox1 = new System.Windows.Forms.TextBox();
-            this.label31 = new System.Windows.Forms.Label();
-            this.label30 = new System.Windows.Forms.Label();
             this.labelTelegramStatus = new System.Windows.Forms.Label();
             this.buttonTelegramTest = new System.Windows.Forms.Button();
             this.label14 = new System.Windows.Forms.Label();
             this.label13 = new System.Windows.Forms.Label();
             this.checkBoxTelegram = new System.Windows.Forms.CheckBox();
+            this.labelTelegramTokenTitle = new System.Windows.Forms.Label();
+            this.textBoxTelegramToken = new System.Windows.Forms.TextBox();
+            this.buttonTelegramTokenSave = new System.Windows.Forms.Button();
             this.label12 = new System.Windows.Forms.Label();
             this.toolTip = new System.Windows.Forms.ToolTip(this.components);
             this.checkBoxPCSlow = new System.Windows.Forms.CheckBox();
@@ -193,9 +191,8 @@ namespace MusicPlayerApp
             this.tabPageFishing.Padding = new System.Windows.Forms.Padding(3);
             this.tabPageFishing.Size = new System.Drawing.Size(495, 446);
             this.tabPageFishing.TabIndex = 0;
-            this.tabPageFishing.Text = "Fishing";
+            this.tabPageFishing.Text = "Balık Tutma";
             this.tabPageFishing.UseVisualStyleBackColor = true;
-            this.tabPageFishing.Click += new System.EventHandler(this.tabPage1_Click);
             // 
             // checkBoxAdaptableFish
             // 
@@ -217,7 +214,7 @@ namespace MusicPlayerApp
             this.checkBoxDeniz.Name = "checkBoxDeniz";
             this.checkBoxDeniz.Size = new System.Drawing.Size(66, 17);
             this.checkBoxDeniz.TabIndex = 1;
-            this.checkBoxDeniz.Text = "Denizkız";
+            this.checkBoxDeniz.Text = "Denizkızı";
             this.checkBoxDeniz.UseVisualStyleBackColor = true;
             this.checkBoxDeniz.Click += new System.EventHandler(this.checkBoxsFishes_Click);
             // 
@@ -262,7 +259,7 @@ namespace MusicPlayerApp
             this.buttonCheckChat.Name = "buttonCheckChat";
             this.buttonCheckChat.Size = new System.Drawing.Size(107, 20);
             this.buttonCheckChat.TabIndex = 51;
-            this.buttonCheckChat.Text = "Check Chat";
+            this.buttonCheckChat.Text = "Sohbeti Denetle";
             this.buttonCheckChat.UseVisualStyleBackColor = true;
             this.buttonCheckChat.Click += new System.EventHandler(this.buttonCheckChat_Click);
             // 
@@ -350,8 +347,7 @@ namespace MusicPlayerApp
             this.checkBoxEnableTime.TabIndex = 42;
             this.checkBoxEnableTime.Text = "Zamanlayıcı Aktif Et";
             this.checkBoxEnableTime.UseVisualStyleBackColor = true;
-            this.checkBoxEnableTime.CheckedChanged += new System.EventHandler(this.checkBoxEnableTime_CheckedChanged_1);
-            this.checkBoxEnableTime.Click += new System.EventHandler(this.checkBoxEnableTime_CheckedChanged);
+            this.checkBoxEnableTime.CheckedChanged += new System.EventHandler(this.checkBoxEnableTime_CheckedChanged);
             // 
             // checkBoxHepsi
             // 
@@ -375,7 +371,7 @@ namespace MusicPlayerApp
             this.checkBoxKurbaga.Name = "checkBoxKurbaga";
             this.checkBoxKurbaga.Size = new System.Drawing.Size(66, 17);
             this.checkBoxKurbaga.TabIndex = 40;
-            this.checkBoxKurbaga.Text = "Kurbaga";
+            this.checkBoxKurbaga.Text = "Kurbağa";
             this.checkBoxKurbaga.UseVisualStyleBackColor = true;
             this.checkBoxKurbaga.Click += new System.EventHandler(this.checkBoxsFishes_Click);
             // 
@@ -414,7 +410,7 @@ namespace MusicPlayerApp
             this.checkBoxAltinSudak.Name = "checkBoxAltinSudak";
             this.checkBoxAltinSudak.Size = new System.Drawing.Size(79, 17);
             this.checkBoxAltinSudak.TabIndex = 38;
-            this.checkBoxAltinSudak.Text = "GoldSudak";
+            this.checkBoxAltinSudak.Text = "Altın Sudak";
             this.checkBoxAltinSudak.UseVisualStyleBackColor = true;
             this.checkBoxAltinSudak.Click += new System.EventHandler(this.checkBoxsFishes_Click);
             // 
@@ -441,7 +437,7 @@ namespace MusicPlayerApp
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(80, 18);
             this.label3.TabIndex = 36;
-            this.label3.Text = "Path Ways";
+            this.label3.Text = "Kayıt Yeri";
             // 
             // comboBoxPathWays
             // 
@@ -463,7 +459,7 @@ namespace MusicPlayerApp
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(80, 20);
             this.label2.TabIndex = 34;
-            this.label2.Text = "File Name";
+            this.label2.Text = "Dosya Adı";
             // 
             // label1
             // 
@@ -475,7 +471,7 @@ namespace MusicPlayerApp
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(114, 20);
             this.label1.TabIndex = 33;
-            this.label1.Text = "Rectangle Info";
+            this.label1.Text = "Dikdörtgen Bilgisi";
             // 
             // textBoxFileName
             // 
@@ -504,7 +500,7 @@ namespace MusicPlayerApp
             this.buttonQuickSS.Name = "buttonQuickSS";
             this.buttonQuickSS.Size = new System.Drawing.Size(130, 43);
             this.buttonQuickSS.TabIndex = 30;
-            this.buttonQuickSS.Text = "Take SShot";
+            this.buttonQuickSS.Text = "Ekran Görüntüsü Al";
             this.buttonQuickSS.UseVisualStyleBackColor = true;
             this.buttonQuickSS.Click += new System.EventHandler(this.buttonQuickSS_Click);
             // 
@@ -518,7 +514,7 @@ namespace MusicPlayerApp
             this.labelStartStatus.Name = "labelStartStatus";
             this.labelStartStatus.Size = new System.Drawing.Size(57, 24);
             this.labelStartStatus.TabIndex = 29;
-            this.labelStartStatus.Text = "Good";
+            this.labelStartStatus.Text = "Hazır";
             this.labelStartStatus.TextAlign = System.Drawing.ContentAlignment.TopCenter;
             // 
             // buttonFishingStart
@@ -529,7 +525,7 @@ namespace MusicPlayerApp
             this.buttonFishingStart.Name = "buttonFishingStart";
             this.buttonFishingStart.Size = new System.Drawing.Size(184, 46);
             this.buttonFishingStart.TabIndex = 28;
-            this.buttonFishingStart.Text = "Start";
+            this.buttonFishingStart.Text = "BAŞLAT";
             this.buttonFishingStart.UseVisualStyleBackColor = true;
             this.buttonFishingStart.Click += new System.EventHandler(this.buttonFishingStartClick);
             // 
@@ -551,7 +547,7 @@ namespace MusicPlayerApp
             this.buttonScreenShot.Name = "buttonScreenShot";
             this.buttonScreenShot.Size = new System.Drawing.Size(79, 63);
             this.buttonScreenShot.TabIndex = 26;
-            this.buttonScreenShot.Text = "Screen Shot";
+            this.buttonScreenShot.Text = "Tam Ekran Seç";
             this.buttonScreenShot.UseVisualStyleBackColor = true;
             this.buttonScreenShot.MouseClick += new System.Windows.Forms.MouseEventHandler(this.buttonScreenShot_MouseClick);
             // 
@@ -755,7 +751,6 @@ namespace MusicPlayerApp
             this.label21.Size = new System.Drawing.Size(19, 13);
             this.label21.TabIndex = 26;
             this.label21.Text = "F2";
-            this.label21.Click += new System.EventHandler(this.label21_Click);
             // 
             // label20
             // 
@@ -833,7 +828,6 @@ namespace MusicPlayerApp
             this.groupBox1.TabIndex = 19;
             this.groupBox1.TabStop = false;
             this.groupBox1.Text = "Enerji kristali";
-            this.groupBox1.Enter += new System.EventHandler(this.groupBox1_Enter);
             // 
             // label27
             // 
@@ -844,7 +838,6 @@ namespace MusicPlayerApp
             this.label27.Size = new System.Drawing.Size(332, 13);
             this.label27.TabIndex = 24;
             this.label27.Text = "Market aç yazısı ikinci sırada olsun. Ardından silahcının orada başlatın";
-            this.label27.Click += new System.EventHandler(this.label27_Click);
             // 
             // label26
             // 
@@ -884,7 +877,7 @@ namespace MusicPlayerApp
             this.labelEnergyCristal.Name = "labelEnergyCristal";
             this.labelEnergyCristal.Size = new System.Drawing.Size(72, 22);
             this.labelEnergyCristal.TabIndex = 20;
-            this.labelEnergyCristal.Text = "Waiting";
+            this.labelEnergyCristal.Text = "Bekliyor";
             // 
             // buttonEnergyStart
             // 
@@ -893,7 +886,7 @@ namespace MusicPlayerApp
             this.buttonEnergyStart.Name = "buttonEnergyStart";
             this.buttonEnergyStart.Size = new System.Drawing.Size(97, 23);
             this.buttonEnergyStart.TabIndex = 0;
-            this.buttonEnergyStart.Text = "START";
+            this.buttonEnergyStart.Text = "BAŞLAT";
             this.buttonEnergyStart.UseVisualStyleBackColor = true;
             this.buttonEnergyStart.Click += new System.EventHandler(this.buttonEnergyCristalStart_Click);
             // 
@@ -906,7 +899,7 @@ namespace MusicPlayerApp
             this.labelLevelFarmStatus.Name = "labelLevelFarmStatus";
             this.labelLevelFarmStatus.Size = new System.Drawing.Size(72, 22);
             this.labelLevelFarmStatus.TabIndex = 18;
-            this.labelLevelFarmStatus.Text = "Waiting";
+            this.labelLevelFarmStatus.Text = "Bekliyor";
             // 
             // textBoxSp
             // 
@@ -1087,21 +1080,19 @@ namespace MusicPlayerApp
             this.buttonLevelStart.Name = "buttonLevelStart";
             this.buttonLevelStart.Size = new System.Drawing.Size(95, 29);
             this.buttonLevelStart.TabIndex = 0;
-            this.buttonLevelStart.Text = "START";
+            this.buttonLevelStart.Text = "BAŞLAT";
             this.buttonLevelStart.UseVisualStyleBackColor = true;
             this.buttonLevelStart.Click += new System.EventHandler(this.buttonLevelStart_Click);
             // 
             // tabPageTelegram
             // 
-            this.tabPageTelegram.Controls.Add(this.label33);
-            this.tabPageTelegram.Controls.Add(this.label32);
-            this.tabPageTelegram.Controls.Add(this.textBox1);
-            this.tabPageTelegram.Controls.Add(this.label31);
-            this.tabPageTelegram.Controls.Add(this.label30);
             this.tabPageTelegram.Controls.Add(this.labelTelegramStatus);
             this.tabPageTelegram.Controls.Add(this.buttonTelegramTest);
             this.tabPageTelegram.Controls.Add(this.label14);
             this.tabPageTelegram.Controls.Add(this.label13);
+            this.tabPageTelegram.Controls.Add(this.labelTelegramTokenTitle);
+            this.tabPageTelegram.Controls.Add(this.textBoxTelegramToken);
+            this.tabPageTelegram.Controls.Add(this.buttonTelegramTokenSave);
             this.tabPageTelegram.Controls.Add(this.checkBoxTelegram);
             this.tabPageTelegram.Controls.Add(this.label12);
             this.tabPageTelegram.Location = new System.Drawing.Point(4, 22);
@@ -1112,75 +1103,23 @@ namespace MusicPlayerApp
             this.tabPageTelegram.Text = "Haberleşme ve Diğer";
             this.tabPageTelegram.UseVisualStyleBackColor = true;
             // 
-            // label33
-            // 
-            this.label33.AutoSize = true;
-            this.label33.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
-            this.label33.ForeColor = System.Drawing.Color.Red;
-            this.label33.Location = new System.Drawing.Point(172, 331);
-            this.label33.Name = "label33";
-            this.label33.Size = new System.Drawing.Size(91, 20);
-            this.label33.TabIndex = 10;
-            this.label33.Text = "Kuveyt Türk";
-            // 
-            // label32
-            // 
-            this.label32.AutoSize = true;
-            this.label32.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
-            this.label32.ForeColor = System.Drawing.Color.Red;
-            this.label32.Location = new System.Drawing.Point(22, 331);
-            this.label32.Name = "label32";
-            this.label32.Size = new System.Drawing.Size(135, 20);
-            this.label32.TabIndex = 9;
-            this.label32.Text = "Mümtaz Taşdelen";
-            // 
-            // textBox1
-            // 
-            this.textBox1.ForeColor = System.Drawing.SystemColors.MenuHighlight;
-            this.textBox1.Location = new System.Drawing.Point(26, 308);
-            this.textBox1.Name = "textBox1";
-            this.textBox1.ReadOnly = true;
-            this.textBox1.Size = new System.Drawing.Size(174, 20);
-            this.textBox1.TabIndex = 8;
-            this.textBox1.Text = "TR160020500009467150900001 ";
-            // 
-            // label31
-            // 
-            this.label31.AutoSize = true;
-            this.label31.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(128)))), ((int)(((byte)(0)))));
-            this.label31.Location = new System.Drawing.Point(23, 280);
-            this.label31.Name = "label31";
-            this.label31.Size = new System.Drawing.Size(300, 13);
-            this.label31.TabIndex = 7;
-            this.label31.Text = "Eğer program işine yarıyor ve emeğimi ödüllendirmek isterseniz.";
-            // 
-            // label30
-            // 
-            this.label30.AutoSize = true;
-            this.label30.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
-            this.label30.Location = new System.Drawing.Point(19, 247);
-            this.label30.Name = "label30";
-            this.label30.Size = new System.Drawing.Size(118, 20);
-            this.label30.TabIndex = 6;
-            this.label30.Text = "BAĞIŞ YAP :=)";
-            // 
             // labelTelegramStatus
             // 
             this.labelTelegramStatus.AutoSize = true;
             this.labelTelegramStatus.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.labelTelegramStatus.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(192)))), ((int)(((byte)(0)))));
-            this.labelTelegramStatus.Location = new System.Drawing.Point(181, 144);
+            this.labelTelegramStatus.Location = new System.Drawing.Point(22, 182);
             this.labelTelegramStatus.Name = "labelTelegramStatus";
-            this.labelTelegramStatus.Size = new System.Drawing.Size(82, 20);
+            this.labelTelegramStatus.Size = new System.Drawing.Size(436, 20);
             this.labelTelegramStatus.TabIndex = 5;
-            this.labelTelegramStatus.Text = "Bekleniyor";
+            this.labelTelegramStatus.Text = "Token yapılandırılmadı — Telegram kapalı";
             this.labelTelegramStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // buttonTelegramTest
             // 
             this.buttonTelegramTest.Font = new System.Drawing.Font("Microsoft Sans Serif", 14.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.buttonTelegramTest.ForeColor = System.Drawing.Color.Blue;
-            this.buttonTelegramTest.Location = new System.Drawing.Point(23, 131);
+            this.buttonTelegramTest.Location = new System.Drawing.Point(22, 131);
             this.buttonTelegramTest.Name = "buttonTelegramTest";
             this.buttonTelegramTest.Size = new System.Drawing.Size(120, 42);
             this.buttonTelegramTest.TabIndex = 4;
@@ -1207,6 +1146,36 @@ namespace MusicPlayerApp
             this.label13.Size = new System.Drawing.Size(136, 20);
             this.label13.TabIndex = 2;
             this.label13.Text = "@metin2gamebot";
+            // 
+            // labelTelegramTokenTitle
+            // 
+            this.labelTelegramTokenTitle.AutoSize = true;
+            this.labelTelegramTokenTitle.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.labelTelegramTokenTitle.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(0)))), ((int)(((byte)(192)))));
+            this.labelTelegramTokenTitle.Location = new System.Drawing.Point(19, 240);
+            this.labelTelegramTokenTitle.Name = "labelTelegramTokenTitle";
+            this.labelTelegramTokenTitle.Size = new System.Drawing.Size(270, 16);
+            this.labelTelegramTokenTitle.TabIndex = 6;
+            this.labelTelegramTokenTitle.Text = "Telegram Bot Token (BotFather'dan alınır)";
+            // 
+            // textBoxTelegramToken
+            // 
+            this.textBoxTelegramToken.Location = new System.Drawing.Point(22, 262);
+            this.textBoxTelegramToken.Name = "textBoxTelegramToken";
+            this.textBoxTelegramToken.PasswordChar = '*';
+            this.textBoxTelegramToken.Size = new System.Drawing.Size(320, 20);
+            this.textBoxTelegramToken.TabIndex = 7;
+            this.textBoxTelegramToken.UseSystemPasswordChar = true;
+            // 
+            // buttonTelegramTokenSave
+            // 
+            this.buttonTelegramTokenSave.Location = new System.Drawing.Point(348, 260);
+            this.buttonTelegramTokenSave.Name = "buttonTelegramTokenSave";
+            this.buttonTelegramTokenSave.Size = new System.Drawing.Size(110, 24);
+            this.buttonTelegramTokenSave.TabIndex = 8;
+            this.buttonTelegramTokenSave.Text = "Token'ı Kaydet";
+            this.buttonTelegramTokenSave.UseVisualStyleBackColor = true;
+            this.buttonTelegramTokenSave.Click += new System.EventHandler(this.buttonTelegramTokenSave_Click);
             // 
             // checkBoxTelegram
             // 
@@ -1249,7 +1218,7 @@ namespace MusicPlayerApp
             this.ForeColor = System.Drawing.SystemColors.Highlight;
             this.Margin = new System.Windows.Forms.Padding(2);
             this.Name = "MainForm";
-            this.Text = "MusicPlayer";
+            this.Text = "Metin2 Balık / Level / Enerji Botu";
             this.Load += new System.EventHandler(this.MainForm_Load);
             this.tabControlTelegram.ResumeLayout(false);
             this.tabPageFishing.ResumeLayout(false);
@@ -1322,6 +1291,9 @@ namespace MusicPlayerApp
         private System.Windows.Forms.Label labelEnergyCristal;
         private System.Windows.Forms.TabPage tabPageTelegram;
         private System.Windows.Forms.CheckBox checkBoxTelegram;
+        private System.Windows.Forms.Label labelTelegramTokenTitle;
+        private System.Windows.Forms.TextBox textBoxTelegramToken;
+        private System.Windows.Forms.Button buttonTelegramTokenSave;
         private System.Windows.Forms.Label label12;
         private System.Windows.Forms.Label label14;
         private System.Windows.Forms.Label label13;
@@ -1350,11 +1322,6 @@ namespace MusicPlayerApp
         private System.Windows.Forms.Label label25;
         private System.Windows.Forms.Label label29;
         private System.Windows.Forms.Label label28;
-        private System.Windows.Forms.Label label30;
-        private System.Windows.Forms.TextBox textBox1;
-        private System.Windows.Forms.Label label31;
-        private System.Windows.Forms.Label label32;
-        private System.Windows.Forms.Label label33;
         private System.Windows.Forms.CheckBox checkBoxFishingMiniBreak;
         private System.Windows.Forms.CheckBox checkBoxWhisperActive;
         private System.Windows.Forms.CheckBox checkBoxChatActive;

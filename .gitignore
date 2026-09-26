@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------
+# Derleme ciktilari (Visual Studio / MSBuild)
+# ---------------------------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.VisualState.xml
+TestResult.xml
+
+# ---------------------------------------------------------------
+# NuGet (packages.config usulu) - paketler restore ile gelir
+# ---------------------------------------------------------------
+packages/
+!packages/repositories.config
+*.nupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ---------------------------------------------------------------
+# Calisma ZAMANI uretilen dosyalar (bot tarafindan yazilir)
+#   - Logs/       : yeni dosya loglayicisinin cikti klasoru
+#   - ScreenShot/ : program tarafindan alinan ekran goruntuleri
+# Not: bu klasorler bos tutulmaz; .gitkeep ile klasor yapisi korunur.
+# ---------------------------------------------------------------
+Logs/
+*.log
+ScreenShot/*
+!ScreenShot/.gitkeep
+
+# ---------------------------------------------------------------
+# Gecici / sistem dosyalari
+# ---------------------------------------------------------------
+*.tmp
+*.temp
+*.bak
+*.orig
+*~
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+
+# ---------------------------------------------------------------
+# Bu repoya ozel yardimci araclar (statik denetim scriptleri)
+# ---------------------------------------------------------------
+tools/
+__pycache__/
+*.pyc

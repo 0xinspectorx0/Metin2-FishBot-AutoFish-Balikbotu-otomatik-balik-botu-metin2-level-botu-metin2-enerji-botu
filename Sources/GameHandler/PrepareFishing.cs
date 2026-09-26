@@ -30,6 +30,16 @@ namespace MusicPlayerApp.Sources.GameHandler
 
         private readonly int NEEDED_WORM200_COUNT = 32;
 
+        /// <summary>Balıkçıyı bulmak için azami özyineleme/deneme sayısı.</summary>
+        private const int MAX_FISHER_RETRY = 6;
+
+        /// <summary>Kızartma işleminin azami deneme sayısı (sonsuz döngü koruması).</summary>
+        private const int MAX_GRILL_RETRY = 8;
+
+        /// <summary>CheckFisherIsThere özyineleme derinliği sayacı.</summary>
+        private static int fisherSearchDepth = 0;
+        private const int MAX_FISHER_SEARCH_DEPTH = 6;
+
         private bool isGrillFishesFailed = false;
 
         List<Rectangle> listWorm200;
@@ -161,6 +171,16 @@ namespace MusicPlayerApp.Sources.GameHandler
 
         private bool CheckFisherIsThere()
         {
+            // Balıkçı ara ekranı bulunamadığında metot kendini yeniden çağırır; derinlik
+            // sınırı olmadan StackOverflowException riski vardı.
+            if (fisherSearchDepth >= MAX_FISHER_SEARCH_DEPTH)
+            {
+                FileLogger.Warning("CheckFisherIsThere: azami arama derinliğine ulaşıldı, " +
+                    "balıkçı bulunamadı kabul ediliyor");
+                fisherSearchDepth = 0;
+                return false;
+            }
+
             Stopwatch watch = new Stopwatch();
             watch.Start();
 
@@ -223,6 +243,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                                 //Wait for opening fisher shop page
                                 TimerGame.SleepRandom(1400, 1660);
                             }
+                            fisherSearchDepth = 0;
                             return true;
                         }
                         else
@@ -231,7 +252,15 @@ namespace MusicPlayerApp.Sources.GameHandler
                             TimerGame.SleepRandom(300, 500);
                             inputGame.KeyRelease(KeyboardInput.ScanCodeShort.KEY_W);
 
-                           return CheckFisherIsThere();
+                            fisherSearchDepth++;
+                            try
+                            {
+                                return CheckFisherIsThere();
+                            }
+                            finally
+                            {
+                                fisherSearchDepth--;
+                            }
                         }
                             
                     }
@@ -283,9 +312,14 @@ namespace MusicPlayerApp.Sources.GameHandler
             else
             {
                 
-                if(CheckFisherIsThere())
+                // Özyineleme yerine sınırlı deneme (StackOverflow koruması).
+                for (int retry = 0; retry < MAX_FISHER_RETRY; retry++)
                 {
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return;
+                    if (!CheckFisherIsThere()) return;
+
                     WormsHandle();
+                    return;
                 }
             }
         }
@@ -411,111 +445,159 @@ namespace MusicPlayerApp.Sources.GameHandler
             }
             else
             {
-                CheckFisherIsThere();
-                BuyKampAtasiFromFisher();
+                // Özyineleme yerine sınırlı deneme.
+                for (int retry = 0; retry < MAX_FISHER_RETRY; retry++)
+                {
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return;
+                    if (!CheckFisherIsThere()) return;
+
+                    BuyKampAtasiFromFisher();
+                    return;
+                }
             }
            
         }
+        /// <summary>
+        /// Balıkçı dükkanı açıkken kamp ateşi alıp envanterdeki balıkları kızartır.
+        /// </summary>
+        /// <remarks>
+        /// HATA DÜZELTİLDİ: eski sürüm `GetFishTypesForGrilling()` sonucunu sabit
+        /// `[0]`, `[1]`, `[2]` indeksleriyle kontrol ediyordu. Kullanıcı yalnızca
+        /// Kurbağa/Kadife/Denizkızı seçtiğinde bu indeksler null kalıyor ve
+        /// <see cref="NullReferenceException"/> ile bot ölüyordu. Ayrıca Denizkızı
+        /// kızartma listesine hiç dahil değildi. Artık seçili balık türleri dinamik
+        /// olarak listeleniyor ve toplam sayıya bakılıyor.
+        /// </remarks>
         private void GrillFishingHandle()
         {
-            TimerGame timeGame = new TimerGame();
             DebugPfCnsl.println("GrillFishingHandle func is called");
 
-            if(CheckFisherShopPage() )
+            if (CheckFisherShopPage())
             {
-                
                 BuyKampAtasiFromFisher();
-                if(!ThreadGlobals.isHepsiSelected)
-                {
-                    int fishTypes = 0;
-                    int[][] fishResult = GetFishTypesForGrilling();
 
-                    //DebugPfCnsl.println("fishResut length = " + fishResult.Length );
-                    for (int i = 0; i < fishResult.Length; i++)
+                if (!ThreadGlobals.isHepsiSelected)
+                {
+                    List<int[]> selectedFishIcons = GetFishTypesForGrilling();
+                    if (selectedFishIcons.Count == 0)
                     {
-                        if (fishResult[i] != null)
-                        {
-                            fishTypes++;
-                        }
+                        DebugPfCnsl.println("Kızartılacak balık seçilmemiş, kızartma atlandı");
+                        return;
                     }
 
-                    if (fishTypes > 0)
+                    List<Rectangle[]> fishCoordinatesPageOne = new List<Rectangle[]>();
+                    List<Rectangle[]> fishCoordinatesPageTwo = new List<Rectangle[]>();
+
+                    foreach (int[] fishIcon in selectedFishIcons)
                     {
-                        Rectangle[][] fishCoordinatesPageOne = new Rectangle[fishTypes][];
-                        Rectangle[][] fishCoordinatesPageTwo = new Rectangle[fishTypes][];
+                        if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return;
 
-                        // DebugPfCnsl.println("fishResut length = " + fishCoordinatesPageOne.Length);
+                        fishCoordinatesPageOne.Add(charThings.CheckObjectInventory(fishIcon,
+                            coordinate.RectItemSlotSizeSample(), InventoryPage.Page_1));
+                        fishCoordinatesPageTwo.Add(charThings.CheckObjectInventory(fishIcon,
+                            coordinate.RectItemSlotSizeSample(), InventoryPage.Page_2));
+                    }
 
-                        int rectCounter = 0;
-                        for (int k = 0; k < fishResult.Length; k++)
-                        {
-                            if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return;
-                            if (fishResult[k] != null)
-                            {
-                                fishCoordinatesPageOne[rectCounter] = charThings.CheckObjectInventory(fishResult[k],
-                                    coordinate.RectItemSlotSizeSample(), InventoryPage.Page_1);
-                                // DebugDrawingHandle.DrawWantedObjectToScreen(fishCoordinatesPageOne[rectCounter]);
-                                fishCoordinatesPageTwo[rectCounter++] = charThings.CheckObjectInventory(fishResult[k],
-                                   coordinate.RectItemSlotSizeSample(), InventoryPage.Page_2);
-                                //DebugDrawingHandle.DrawWantedObjectToScreen(fishCoordinatesPageTwo[rectCounter]);
-                            }
-                        }
+                    // Eski kod yalnızca ilk üç türün birinci sayfasına bakıyordu; artık
+                    // iki sayfadaki tüm seçili türler sayılıyor.
+                    if (CountTotalFish(fishCoordinatesPageOne) + CountTotalFish(fishCoordinatesPageTwo) == 0)
+                    {
+                        DebugPfCnsl.println("Envanterde kızartılacak balık yok");
+                        return;
+                    }
 
-                        if (fishCoordinatesPageOne[0].Length == 0 &&
-                            fishCoordinatesPageOne[1].Length == 0 &&
-                            fishCoordinatesPageOne[2].Length == 0)
-                        {
-                            return;
-                        }
-
-                        Rectangle rectKampGreenResult = FireKampAtesi();
-                        if (rectKampGreenResult != Rectangle.Empty)
-                        {
-                            while (!GrillFishes(fishCoordinatesPageOne, fishCoordinatesPageTwo, rectKampGreenResult))
-                            {
-                                if (CheckFisherIsThere())
-                                {
-                                    if (CheckFisherShopPage())
-                                    {
-                                        BuyKampAtasiFromFisher();
-                                        rectKampGreenResult = FireKampAtesi();
-                                    }
-                                }
-                            }
-                        }
-
+                    Rectangle rectKampGreenResult = FireKampAtesi();
+                    if (rectKampGreenResult != Rectangle.Empty)
+                    {
+                        RetryGrillUntilDone(fishCoordinatesPageOne.ToArray(),
+                            fishCoordinatesPageTwo.ToArray(), rectKampGreenResult);
                     }
                 }
                 else
                 {
+                    // "Hepsi" seçiliyken envanterdeki her nesne ateşe sürüklenir.
                     Rectangle rectKampGreenResult = FireKampAtesi();
                     if (rectKampGreenResult != Rectangle.Empty)
                     {
-                        while (!GrillFishes(null, null, rectKampGreenResult))
-                        {
-                            if (CheckFisherIsThere())
-                            {
-                                if (CheckFisherShopPage())
-                                {
-                                    BuyKampAtasiFromFisher();
-                                    rectKampGreenResult = FireKampAtesi();
-                                }
-                            }
-                        }
+                        RetryGrillUntilDone(null, null, rectKampGreenResult);
                     }
                 }
-               
-                
             }
             else
             {
-                DebugPfCnsl.println("GrillFishingHandle func CheckFisherShopPage else statement is running");
-                if(CheckFisherIsThere())
+                DebugPfCnsl.println("GrillFishingHandle: balıkçı dükkanı açık değil");
+                // Eski sürüm burada kendini özyinelemeli çağırıyordu; derinlik sınırı eklenmiş
+                // döngüye çevrildi (StackOverflow riski kaldırıldı).
+                for (int retry = 0; retry < MAX_FISHER_RETRY; retry++)
                 {
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return;
+                    if (!CheckFisherIsThere()) return;
+
                     GrillFishingHandle();
+                    return;
                 }
             }
         }
+
+        /// <summary>
+        /// Kızartma başarısız olursa kamp ateşini tazeleyip yeniden dener.
+        /// </summary>
+        /// <remarks>
+        /// Eski kod `while (!GrillFishes(...))` döngüsünde ateş bulunamazsa sonsuza kadar
+        /// dönüyordu. Artık deneme sayısı sınırlı ve her turda botun durdurulup
+        /// durdurulmadığı kontrol ediliyor.
+        /// </remarks>
+        private void RetryGrillUntilDone(Rectangle[][] pageOne, Rectangle[][] pageTwo, Rectangle kampAtesiGreen)
+        {
+            for (int attempt = 0; attempt < MAX_GRILL_RETRY; attempt++)
+            {
+                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return;
+
+                if (GrillFishes(pageOne, pageTwo, kampAtesiGreen))
+                {
+                    return;
+                }
+
+                DebugPfCnsl.println("Kızartma tamamlanamadı, kamp ateşi yenileniyor (deneme " + (attempt + 1) + ")");
+
+                if (!CheckFisherIsThere())
+                {
+                    return;
+                }
+                if (!CheckFisherShopPage())
+                {
+                    continue;
+                }
+
+                BuyKampAtasiFromFisher();
+                Rectangle newFire = FireKampAtesi();
+                if (newFire != Rectangle.Empty)
+                {
+                    kampAtesiGreen = newFire;
+                }
+            }
+
+            FileLogger.Warning("Kızartma " + MAX_GRILL_RETRY + " denemede tamamlanamadı, işleme devam ediliyor");
+        }
+
+        /// <summary>Bir sayfadaki tüm balık türlerinin toplam adetini sayar.</summary>
+        private static int CountTotalFish(List<Rectangle[]> fishRectanglesPerPage)
+        {
+            int total = 0;
+            if (fishRectanglesPerPage == null)
+            {
+                return 0;
+            }
+            foreach (Rectangle[] rectangles in fishRectanglesPerPage)
+            {
+                if (rectangles != null)
+                {
+                    total += rectangles.Length;
+                }
+            }
+            return total;
+        }
+
         private bool GrillFishes(Rectangle[][] rectPageOne , Rectangle[][] rectPageTwo,Rectangle kampAtesiGreen)
         {
             DebugPfCnsl.println("GrillFishes func is called");
@@ -753,32 +835,33 @@ namespace MusicPlayerApp.Sources.GameHandler
 
           
         }
-        private int[][] GetFishTypesForGrilling()
+        /// <summary>
+        /// Kullanıcının seçtiği balık türlerinin referans ikonlarını liste olarak döner.
+        /// </summary>
+        /// <remarks>
+        /// Eski sürüm sabit 5 elemanlı `int[][]` döndürüyor ve Denizkızı'nı hiç içermiyordu.
+        /// Liste dönmek hem null indeks hatalarını kaldırır hem de yeni balık türü eklemeyi
+        /// tek satıra indirir.
+        /// </remarks>
+        private List<int[]> GetFishTypesForGrilling()
         {
-            int[][] fishTypes = new int[5][];
+            List<int[]> fishTypes = new List<int[]>();
 
-            if(ThreadGlobals.isYabbieSelected) 
-            {
-                fishTypes[0] = imageObjects.arrayYabbieIcon;
-            }
-            if(ThreadGlobals.isAltinSudakSelected)
-            {
-                fishTypes[1] = imageObjects.arrayAltinSudakIcon;
-            }
-            if(ThreadGlobals.isPalamutSelected)
-            {
-                fishTypes[2] = imageObjects.arrayPalamutIcon;
-            }
-            if(ThreadGlobals.isKurbagaSelected)
-            {
-                fishTypes[3] = imageObjects.arrayKurbagaIcon;
-            }
-            if (ThreadGlobals.isKadifeSelected)
-            {
-                fishTypes[4] = imageObjects.arrayKadifeIcon;
-            }
+            if (ThreadGlobals.isYabbieSelected) fishTypes.Add(imageObjects.arrayYabbieIcon);
+            if (ThreadGlobals.isAltinSudakSelected) fishTypes.Add(imageObjects.arrayAltinSudakIcon);
+            if (ThreadGlobals.isPalamutSelected) fishTypes.Add(imageObjects.arrayPalamutIcon);
+            if (ThreadGlobals.isKurbagaSelected) fishTypes.Add(imageObjects.arrayKurbagaIcon);
+            if (ThreadGlobals.isKadifeSelected) fishTypes.Add(imageObjects.arrayKadifeIcon);
+
+            // NOT: Denizkızı için Fishes klasöründe ENVANTER ikonu bulunmuyor
+            // (yalnızca sohbet yazısı referansı 'denizChat.png' var). Bu yüzden
+            // kızartma listesine eklenemiyor; "Hepsi" seçeneği ile kızartılır.
+            // Denizkızı envanter ikonu eklenirse aşağıdaki satır açılmalıdır:
+            // if (ThreadGlobals.isDenizkizSelected) fishTypes.Add(imageObjects.arrayDenizkizIcon);
+
             return fishTypes;
         }
+
         public void GoToFishPlace()
         {
             int zigZagWalking = 0;

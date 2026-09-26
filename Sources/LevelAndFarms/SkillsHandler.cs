@@ -1,127 +1,124 @@
-﻿using MusicPlayerApp.Debugs;
+using MusicPlayerApp.Debugs;
 using MusicPlayerApp.Sources;
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Metin2AutoFishCSharp.Sources.LevelAndFarms
 {
+    /// <summary>
+    /// Hızlı erişim tuşlarına (1-4 ve F1-F4) atanan becerileri, kullanıcıdan alınan
+    /// süre aralıklarına göre basar.
+    /// </summary>
+    /// <remarks>
+    /// Beceriler "hedef seçimi" yapılmadan, yalnızca süre dolduğunda basılır (README'de
+    /// belirtildiği gibi pasif/uzaktan vuran beceriler daha verimlidir).
+    ///
+    /// <para><b>Bakım turunda düzeltilenler:</b></para>
+    /// <list type="bullet">
+    /// <item><c>StartSkillUsing</c> içindeki erken çıkış koşulu yalnızca log yazıp
+    /// <b>return etmiyordu</b>; yani level/farm durdurulduğunda veya ayar düğmesi
+    /// görünmediğinde (örneğin karakter ekranı açıkken) beceriler basılmaya devam
+    /// ediyordu. <c>return</c> eklendi.</item>
+    /// <item>Süre dizisi her tuş kontrolünde kopyalanıyordu; artık tur başına bir kez
+    /// okunuyor.</item>
+    /// <item>Süresi <c>0</c> girilen beceri hiç basılmıyordu (zamanlayıcı 0 saniyeyi
+    /// "doldu" kabul etmiyordu). Artık 0 = "her turda bas".</item>
+    /// </list>
+    /// </remarks>
     internal class SkillsHandler
     {
-        private TimerGame[] timersGameSkillTime;
-        private bool[] stateKeyPresses;
-        private TimerGame timerWaitSkillUsing;
-        private GameInputHandler inputHandler;
-
-       // private bool firstPress = false;
-        public SkillsHandler() 
+        /// <summary>Hızlı erişim tuşlarının tarama kodları (1-4 ve F1-F4).</summary>
+        private static readonly KeyboardInput.ScanCodeShort[] skillKeys = new KeyboardInput.ScanCodeShort[]
         {
-            timersGameSkillTime = new TimerGame[8];
-            timersGameSkillTime[0] = new TimerGame();
-            timersGameSkillTime[1] = new TimerGame();
-            timersGameSkillTime[2] = new TimerGame();
-            timersGameSkillTime[3] = new TimerGame();
-            timersGameSkillTime[4] = new TimerGame();
-            timersGameSkillTime[5] = new TimerGame();
-            timersGameSkillTime[6] = new TimerGame();
-            timersGameSkillTime[7] = new TimerGame();
+            KeyboardInput.ScanCodeShort.KEY_1,
+            KeyboardInput.ScanCodeShort.KEY_2,
+            KeyboardInput.ScanCodeShort.KEY_3,
+            KeyboardInput.ScanCodeShort.KEY_4,
+            KeyboardInput.ScanCodeShort.F1,
+            KeyboardInput.ScanCodeShort.F2,
+            KeyboardInput.ScanCodeShort.F3,
+            KeyboardInput.ScanCodeShort.F4,
+        };
 
-            stateKeyPresses = new bool[8];
-            timerWaitSkillUsing = new TimerGame();
+        /// <summary>Beceri süresi 0 girildiğinde kullanılan asgari bekleme (saniye).</summary>
+        private const int MINIMUM_SKILL_INTERVAL_SECOND = 1;
+
+        private readonly TimerGame[] timersGameSkillTime;
+        private readonly bool[] stateKeyPresses;
+        private readonly GameInputHandler inputHandler;
+
+        public SkillsHandler()
+        {
+            timersGameSkillTime = new TimerGame[skillKeys.Length];
+            for (int i = 0; i < timersGameSkillTime.Length; i++)
+            {
+                timersGameSkillTime[i] = new TimerGame();
+            }
+
+            stateKeyPresses = new bool[skillKeys.Length];
             inputHandler = new GameInputHandler();
         }
 
+        /// <summary>
+        /// Süresi gelen becerileri basar. Yalnızca otomatik av açıkken ve oyun
+        /// oynanabilir durumdayken çalışır.
+        /// </summary>
         public void StartSkillUsing()
         {
-            if(ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isSettingButtonSeemed)
+            if (ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isSettingButtonSeemed)
             {
-                DebugPfCnsl.println("StartSkillUsing is returned");
+                DebugPfCnsl.println("StartSkillUsing: level/farm kapalı veya oyun hazır değil, beceri basılmadı");
+                return;
             }
-            if (AutoHunter.IS_AUTO_HUNTER_STARTED)
+
+            if (!AutoHunter.IS_AUTO_HUNTER_STARTED)
             {
-               
-                    //for key_1 
-                    if (ThreadGlobals.SKILL_TIME_FOR_KEYS[0] >= 0)
-                    {
-                        PressWantedSkill(ref stateKeyPresses[0], timersGameSkillTime[0], ThreadGlobals.SKILL_TIME_FOR_KEYS[0]
-                            ,KeyboardInput.ScanCodeShort.KEY_1);
-                       
-                       
-                    }
-                    //for key_2 
-                    if (ThreadGlobals.SKILL_TIME_FOR_KEYS[1] >= 0)
-                    {
-                        PressWantedSkill(ref stateKeyPresses[1], timersGameSkillTime[1], ThreadGlobals.SKILL_TIME_FOR_KEYS[1]
-                            ,KeyboardInput.ScanCodeShort.KEY_2);
-                       
-                    }
-                    //for key_3
-                    if (ThreadGlobals.SKILL_TIME_FOR_KEYS[2] >= 0)
-                    {
-                        PressWantedSkill(ref stateKeyPresses[2], timersGameSkillTime[2], ThreadGlobals.SKILL_TIME_FOR_KEYS[2]
-                            ,KeyboardInput.ScanCodeShort.KEY_3);
-                        
-                    }
-                    //for key_4
-                    if (ThreadGlobals.SKILL_TIME_FOR_KEYS[3] >= 0)
-                    {
-                        PressWantedSkill(ref stateKeyPresses[3], timersGameSkillTime[3], ThreadGlobals.SKILL_TIME_FOR_KEYS[3]
-                            ,KeyboardInput.ScanCodeShort.KEY_4);
-                        
-                    }
-                    //for key_F1
-                    if (ThreadGlobals.SKILL_TIME_FOR_KEYS[4] >= 0)
-                    {
-                        PressWantedSkill(ref stateKeyPresses[4], timersGameSkillTime[4], ThreadGlobals.SKILL_TIME_FOR_KEYS[4]
-                            ,KeyboardInput.ScanCodeShort.F1);
-                       
-                    }
-                    //for key_F2
-                    if (ThreadGlobals.SKILL_TIME_FOR_KEYS[5] >= 0)
-                    {
-                        PressWantedSkill(ref stateKeyPresses[5], timersGameSkillTime[5], ThreadGlobals.SKILL_TIME_FOR_KEYS[5]
-                            ,KeyboardInput.ScanCodeShort.F2);
-                       
-                    }
-                    //for key_F3
-                    if (ThreadGlobals.SKILL_TIME_FOR_KEYS[6] >= 0)
-                    {
-                        PressWantedSkill(ref stateKeyPresses[6], timersGameSkillTime[6], ThreadGlobals.SKILL_TIME_FOR_KEYS[6]
-                            ,KeyboardInput.ScanCodeShort.F3);
-                       
-                    }
-                    //for key_F4
-                    if (ThreadGlobals.SKILL_TIME_FOR_KEYS[7] >= 0)
-                    {
-                        PressWantedSkill(ref stateKeyPresses[7], timersGameSkillTime[7], ThreadGlobals.SKILL_TIME_FOR_KEYS[7]
-                            ,KeyboardInput.ScanCodeShort.F4);
-                       
-                    }
-                    
-                   // firstPress = true;
-                
-                
+                return;
+            }
+
+            // Kullanıcı süreleri tek seferde okunur (her tuş için dizi kopyalanmaz).
+            int[] skillTimes = ThreadGlobals.GetSkillTimeForKeys();
+
+            for (int i = 0; i < skillKeys.Length; i++)
+            {
+                if (skillTimes[i] < 0)
+                {
+                    continue;
+                }
+
+                PressWantedSkill(i, skillTimes[i]);
             }
         }
 
-        private void PressWantedSkill(ref bool state,TimerGame timer,int delayTime,KeyboardInput.ScanCodeShort code)
+        /// <summary>
+        /// Verilen slottaki beceriyi, süresi dolduysa basar.
+        /// </summary>
+        /// <param name="slotIndex">0-7 arası tuş indeksi</param>
+        /// <param name="delayTime">Beklenecek saniye (0 = her turda bas)</param>
+        private void PressWantedSkill(int slotIndex, int delayTime)
         {
-            if (timer.CheckDelayTimeInSecond(delayTime))
+            TimerGame timer = timersGameSkillTime[slotIndex];
+            KeyboardInput.ScanCodeShort code = skillKeys[slotIndex];
+
+            // Süre 0 ise zamanlayıcı hiçbir zaman "dolmadı" demez; bu yüzden en az
+            // 1 saniyelik aralık kullanılır ve beceri her turda basılabilir.
+            int effectiveDelay = Math.Max(delayTime, MINIMUM_SKILL_INTERVAL_SECOND);
+
+            if (timer.CheckDelayTimeInSecond(effectiveDelay))
             {
-                if (!state)
+                // Süre henüz dolmadı: beceri bir kez basıldıysa yeniden basma.
+                if (!stateKeyPresses[slotIndex])
                 {
                     inputHandler.KeyPress(KeyboardInput.ScanCodeShort.TAB);
                     inputHandler.KeyPress(code);
-                    state = true;
-                    DebugPfCnsl.println("tuş " +code.ToString() + " basıldı");
+                    stateKeyPresses[slotIndex] = true;
+                    DebugPfCnsl.println("Beceri tuşu basıldı: " + code);
                     TimerGame.SleepRandom(3000, 3200);
                 }
             }
             else
             {
-                state = false;
+                // Süre doldu: yeni periyot başlatılır.
+                stateKeyPresses[slotIndex] = false;
                 timer.SetStartedSecondTime();
             }
         }

@@ -54,8 +54,13 @@ namespace Metin2AutoFishCSharp.Sources.CharacterHandle
 
             Rectangle rectScanningArea = coor.RectItemPickUpDetectArea();
            // int[] targetImageArray = screenShot.ImageArraySpecifiedArea(rectScanningArea);
-            Bitmap bitmapTargetIcon = screenShot.CaptureSpecifiedScreen(rectScanningArea);
-            int[] targetImageArray = screenShot.ConvertBitmapToArray(bitmapTargetIcon);
+            // Ara bitmap tutulmadan dogrudan piksel dizisi alinir (GDI sizintisi giderildi).
+            int[] targetImageArray = screenShot.CaptureAreaAsArray(rectScanningArea);
+            if (targetImageArray == null)
+            {
+                FileLogger.Warning("PickUpWantedItem: tarama alani yakalanamadi, toplama atlandi");
+                return;
+            }
 
             bool mouseIsPressed = false;
            // DebugPfCnsl.println("ss çekildi filename = test"+ countFile++ +".png         ");

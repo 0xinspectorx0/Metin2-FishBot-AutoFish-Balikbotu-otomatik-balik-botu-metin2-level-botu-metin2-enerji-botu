@@ -122,8 +122,7 @@ namespace MusicPlayerApp.Sources.CharacterHandle
         {
             TimerGame timerTrade = new TimerGame();
 
-            FileHandler.SaveImageAsPng(screenshot.CaptureSpecifiedScreen(coor.RectMetin2GameScreen()),
-                "trade" + tradeImageCounter++ + ".png", PathWayStruct.PATH_SCREENSHOTS);
+            FileHandler.CaptureAndSavePng(screenshot, coor.RectMetin2GameScreen(), "trade" + tradeImageCounter++ + ".png", PathWayStruct.PATH_SCREENSHOTS);
 
             while (CheckTradePanelActive())
             {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing.Imaging;
 using System.Drawing;
@@ -172,8 +172,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                         while (!ThreadGlobals.isFishingStopped && ThreadGlobals.isActiveFishBoard)
                         {
 
-                            ClickFish(screenshot.ConvertBitmapToArray(
-                                screenshot.CaptureSpecifiedScreen(coordinates.RectFishClickArea())));
+                            ClickFish(screenshot.CaptureAreaAsArray(coordinates.RectFishClickArea()));
                         }
                         if(isAltinTonDetected)
                         {
@@ -271,10 +270,9 @@ namespace MusicPlayerApp.Sources.GameHandler
                 //debugConsole.printlnTime("InsertWormForFishing is working",2);
                 if (slotCounter < 4)
                 {
-                    arrayComparable = screenshot.ConvertBitmapToArray(screenshot.CaptureSpecifiedScreen(
-                        new Rectangle(
+                    arrayComparable = screenshot.CaptureAreaAsArray(new Rectangle(
                         coordinates.RectSkillSlotFirstPlace().X + (32 * slotCounter), coordinates.RectSkillSlotFirstPlace().Y
-                        , coordinates.RectSkillSlotFirstPlace().Width, coordinates.RectSkillSlotFirstPlace().Height)));
+                        , coordinates.RectSkillSlotFirstPlace().Width, coordinates.RectSkillSlotFirstPlace().Height));
 
                     arrayScannedWorms = gameImages.DetectWorms(arrayComparable);
 
@@ -310,10 +308,9 @@ namespace MusicPlayerApp.Sources.GameHandler
                  //   }
                  
 
-                    arrayComparable = screenshot.ConvertBitmapToArray(screenshot.CaptureSpecifiedScreen(
-                        new Rectangle(
+                    arrayComparable = screenshot.CaptureAreaAsArray(new Rectangle(
                         coordinates.RectSkillSlotSecondPlace().X + (32 * (slotCounter - 4)), coordinates.RectSkillSlotSecondPlace().Y
-                        , coordinates.RectSkillSlotSecondPlace().Width, coordinates.RectSkillSlotSecondPlace().Height)));
+                        , coordinates.RectSkillSlotSecondPlace().Width, coordinates.RectSkillSlotSecondPlace().Height));
 
                     arrayScannedWorms = gameImages.DetectWorms(arrayComparable);
 
@@ -429,6 +426,15 @@ namespace MusicPlayerApp.Sources.GameHandler
         private void ClickFish(int[] arrayScreenShot)
         {
             rectFish = coordinates.RectFishClickArea();
+
+            // Ekran yakalama basarisiz olursa dizi null doner; eski kod burada
+            // NullReferenceException ile bot thread'ini olduruyordu.
+            if (arrayScreenShot == null || arrayScreenShot.Length < rectFish.Width * rectFish.Height)
+            {
+                FileLogger.Warning("ClickFish: balik alani goruntusu alinamadi, bu tur atlandi");
+                return;
+            }
+
             int rgbFishPixel = 0;
             for (int y = 0; y < rectFish.Height; y++)
             {
@@ -458,7 +464,9 @@ namespace MusicPlayerApp.Sources.GameHandler
                             inputs.MouseMoveQuickly(rectFish.X + x, rectFish.Y + y);
                             if (storeAttempt >= 2)
                             {
-                                inputs.MouseClickQuickly(rectFish.X + x, rectFish.X + x);
+                                // HATA DUZELTILDI: ikinci parametre yanlislikla X olarak
+                                // gonderiliyordu (rectFish.X + x, rectFish.X + x).
+                                inputs.MouseClickQuickly(rectFish.X + x, rectFish.Y + y);
                                 Thread.Sleep(TimerGame.MakeRandomValue(200, 400));
                                 storeAttempt = 0;
                             }

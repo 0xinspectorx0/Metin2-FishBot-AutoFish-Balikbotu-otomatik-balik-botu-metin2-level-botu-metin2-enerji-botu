@@ -31,6 +31,12 @@ namespace MusicPlayerApp
 
             screenShot = new ScreenShotWinAPI();
             fullScreenImageBtmap = screenShot.CaptureScreen();
+            if (fullScreenImageBtmap == null)
+            {
+                FileLogger.Error("FullScreen: tam ekran goruntusu alinamadi, form kapatiliyor", null);
+                this.Close();
+                return;
+            }
             this.BackgroundImage = fullScreenImageBtmap;
             this.BackgroundImageLayout = ImageLayout.Stretch;
 
@@ -66,19 +72,52 @@ namespace MusicPlayerApp
             // Dikdörtgen çizimi bittiğinde ekranı yeniden çiz
             this.Invalidate();
             
-            MainForm.pictureBox.Image = fullScreenImageBtmap.Clone(drawingDebug.getResultRectangle()
-                ,fullScreenImageBtmap.PixelFormat);
-            ScreenShotWinAPI.EditBipMapEndSave(fullScreenImageBtmap, drawingDebug.getResultRectangle()
-                , "test.png", PathWayStruct.PATH_DESTKOP);
+            Rectangle selectedArea = drawingDebug.getResultRectangle();
 
-            Bitmap bitmap = null;
-            bitmap = screenShot.ClipBitmap(fullScreenImageBtmap, drawingDebug.getResultRectangle());
-            Console.WriteLine("determined rectangle result " + drawingDebug.getResultRectangle());
-            DebugPfCnsl.printIntArrayAsDescended(screenShot.ConvertBitmapToArray(bitmap));
-            //DebugPfCnsl.PrintArray(screenShot.ConvertBitmapToArray(bitmap));
+            // Kullanici suruklemeden sadece tiklarsa alan 0x0 kalir; Clone bu durumda
+            // OutOfMemoryException firlatir. Bu yuzden once alan dogrulanir.
+            if (selectedArea.Width <= 0 || selectedArea.Height <= 0 || fullScreenImageBtmap == null)
+            {
+                FileLogger.Warning("FullScreen: gecerli bir alan secilmedi. Alan = "
+                    + ScreenShotWinAPI.Describe(selectedArea));
+                Close();
+                return;
+            }
+
+            // Onceki gorsel serbest birakilmazsa PictureBox her secimde bir bitmap biriktirir.
+            Image previousImage = MainForm.pictureBox.Image;
+            MainForm.pictureBox.Image = fullScreenImageBtmap.Clone(selectedArea, fullScreenImageBtmap.PixelFormat);
+            if (previousImage != null)
+            {
+                previousImage.Dispose();
+            }
+
+            ScreenShotWinAPI.EditBipMapEndSave(fullScreenImageBtmap, selectedArea,
+                "test.png", PathWayStruct.PATH_DESTKOP);
+
+            using (Bitmap bitmap = screenShot.ClipBitmap(fullScreenImageBtmap, selectedArea))
+            {
+                FileLogger.Info("Secilen alan = " + ScreenShotWinAPI.Describe(selectedArea));
+                DebugPfCnsl.printIntArrayAsDescended(screenShot.ConvertBitmapToArray(bitmap));
+            }
 
             Close();
 
+        }
+
+        protected override void OnFormClosed(FormClosedEventArgs e)
+        {
+            // Tam ekran bitmap'i form boyunca tutuluyor; form kapaninca serbest birakilir.
+            if (this.BackgroundImage != null)
+            {
+                this.BackgroundImage = null;
+            }
+            if (fullScreenImageBtmap != null)
+            {
+                fullScreenImageBtmap.Dispose();
+                fullScreenImageBtmap = null;
+            }
+            base.OnFormClosed(e);
         }
 
         private void FullScreen_Load(object sender, EventArgs e)

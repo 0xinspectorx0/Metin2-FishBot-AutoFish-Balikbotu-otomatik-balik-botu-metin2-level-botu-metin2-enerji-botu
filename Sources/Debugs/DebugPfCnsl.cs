@@ -42,38 +42,59 @@ namespace MusicPlayerApp.Debugs
             Console.WriteLine(message + "     " + DateTime.Now);
         }
 
+        /// <summary>
+        /// Hata ayıklama için bir bitmap'ın tüm piksellerini ARGB tamsayısı olarak döker.
+        /// </summary>
+        /// <remarks>
+        /// Eski sürümde iki sorun vardı: (1) <c>bitmap.Width</c>, null kontrolünden ÖNCE
+        /// okunuyordu; yani <c>bitmap == null</c> iken <see cref="NullReferenceException"/>
+        /// fırlıyordu. (2) Her piksel için <c>GetPixel</c> çağrılıyordu; GDI+ üzerinde piksel
+        /// başına ayrı kilitleme anlamına gelen bu yöntem büyük görüntülerde çok yavaştır.
+        /// Artık <c>LockBits</c> ile tek seferde okunuyor.
+        /// </remarks>
         public static void printBitMapArray(Bitmap bitmap)
         {
-            int[] array = new int[bitmap.Width * bitmap.Height];
-            if (bitmap == null) { println("bitmap value is NULL"); return; }
-            println("bitmap total size pixel = " + bitmap.Size);
-            println("bitmap total width = " + bitmap.Width);
+            if (bitmap == null)
+            {
+                println("bitmap value is NULL");
+                return;
+            }
 
             int width = bitmap.Width;
             int height = bitmap.Height;
-           
+            println("bitmap total size pixel = " + bitmap.Size);
+            println("bitmap total width = " + width);
 
-            Color pixelColor = Color.White;
-          //  Console.Write("Array result = [ ");
-            for (int y = 0; y < height; y++)
+            int[] array = new int[width * height];
+            BitmapData data = null;
+            try
             {
-                for (int x = 0; x < width; x++)
+                data = bitmap.LockBits(new Rectangle(0, 0, width, height),
+                    ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+
+                int stride = data.Stride;
+                byte[] buffer = new byte[stride * height];
+                System.Runtime.InteropServices.Marshal.Copy(data.Scan0, buffer, 0, buffer.Length);
+
+                for (int y = 0; y < height; y++)
                 {
-                    pixelColor = bitmap.GetPixel(x, y);
-                    int val1 = pixelColor.ToArgb();
-                    //int valNotAlpha = (0x00FFFFFF) & (val1);
-                    /*Console.WriteLine("index value = {0}, dec value ={1}, hex value = {2},",
-                        x,val1,val1.ToString("X"));*/
-                   // Console.WriteLine("index value = " + x + " dec value = " + val1
-                    //    + "  hex value = " + val1.ToString("X") + "  hex value RGB =" + valNotAlpha.ToString("X"));
-                    array[(y * width) + x] = val1;
+                    int rowStart = y * stride;
+                    for (int x = 0; x < width; x++)
+                    {
+                        int offset = rowStart + (x * 4);
+                        // Bellek düzeni BGRA; ToArgb() ile aynı değer üretiliyor.
+                        array[(y * width) + x] =
+                            (255 << 24) | (buffer[offset + 2] << 16) | (buffer[offset + 1] << 8) | buffer[offset];
+                    }
                 }
-
             }
-          //  Console.Write(" ]");
-
-        
-            
+            finally
+            {
+                if (data != null)
+                {
+                    bitmap.UnlockBits(data);
+                }
+            }
 
             printIntArrayAsDescended(array);
         }

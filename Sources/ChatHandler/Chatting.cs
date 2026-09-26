@@ -141,8 +141,7 @@ namespace Metin2AutoFishCSharp.Sources.ChatHandler
                                             parseSentences[1] + " Tespit ettiğin kelime = " + ChatFileHandler.DetectedWord + " Gönderdiğin cevap = " +
                                            generateAnswer);
 
-                                FileHandler.SaveImageAsPng(screenShot.CaptureSpecifiedScreen(coor.RectMetin2GameScreen()),
-                                    "chatImage" + chatImageCounter++ + ".png", PathWayStruct.PATH_SCREENSHOTS);
+                                FileHandler.CaptureAndSavePng(screenShot, coor.RectMetin2GameScreen(), "chatImage" + chatImageCounter++ + ".png", PathWayStruct.PATH_SCREENSHOTS);
 
                                 ChatInTheGame(generateAnswer);
                                    
@@ -202,8 +201,7 @@ namespace Metin2AutoFishCSharp.Sources.ChatHandler
                                   parseSentences[1] + " Tespit ettiğin herhangi kelime bulunamadı.Gönderdiğin cevap = " +
                                  telegramMessage);
 
-                FileHandler.SaveImageAsPng(screenShot.CaptureSpecifiedScreen(coor.RectMetin2GameScreen()),
-                                   "chatImage" + chatImageCounter++ + ".png", PathWayStruct.PATH_SCREENSHOTS);
+                FileHandler.CaptureAndSavePng(screenShot, coor.RectMetin2GameScreen(), "chatImage" + chatImageCounter++ + ".png", PathWayStruct.PATH_SCREENSHOTS);
 
                 ChatInTheGame(resultString);
             }

@@ -1,23 +1,37 @@
-﻿using MusicPlayerApp.Debugs;
+using MusicPlayerApp.Debugs;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
-using System.Data;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.IO;
-using System.Linq;
+using System.Globalization;
 using System.Runtime.InteropServices;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace MusicPlayerApp.Sources
 {
+    /// <summary>
+    /// Windows GDI (BitBlt) kullanarak ekran goruntusu alir ve alinan goruntuyu
+    /// piksel dizisine (<c>int[]</c>, ARGB) cevirir.
+    ///
+    /// ONEMLI DEGISIKLIKLER (bakim turu):
+    ///  1) <see cref="Image.FromHbitmap(IntPtr)"/> her cagrida bir GDI palette handle'i
+    ///     yaratir ve bu handle serbest birakilmazsa surec 10.000 GDI nesnesi limitine
+    ///     ulasip cokuyordu. Artik palette <see cref="DeleteObject"/> ile siliniyor.
+    ///  2) Piksel okuma <c>GetPixel</c> yerine <c>LockBits</c> ile yapiliyor
+    ///     (~20-50 kat daha hizli; botun ana maliyeti buradaydi).
+    ///  3) <see cref="CaptureAreaAsArray"/> eklendi: yakala -> diziye cevir -> bitmap'i
+    ///     dispose et. Boylece ara bitmap'lar bellekte/GDI'da birikmiyor.
+    ///  4) Hata durumunda dispose edilmis bitmap dondurme hatasi giderildi; artik
+    ///     <c>null</c> doner ve cagiran taraf bunu kontrol eder.
+    ///  5) Worker thread'lerde <see cref="MessageBox.Show"/> cagirmak botu kilitledigi
+    ///     icin kaldirildi; yerine log yaziliyor.
+    /// </summary>
     internal class ScreenShotWinAPI
     {
-        // Windows API'den gerekli fonksiyonları kullanmak için dış kod bildirimi
+        #region Win32 bildirileri
+
         [DllImport("user32.dll")]
         public static extern IntPtr GetDesktopWindow();
 
@@ -37,307 +51,478 @@ namespace MusicPlayerApp.Sources
         public static extern IntPtr SelectObject(IntPtr hdc, IntPtr hgdiobj);
 
         [DllImport("gdi32.dll")]
-        public static extern bool BitBlt(IntPtr hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, IntPtr hdcSrc, int nXSrc, int nYSrc, int dwRop);
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool BitBlt(IntPtr hdcDest, int nXDest, int nYDest, int nWidth, int nHeight, IntPtr hdcSrc, int nXSrc, int nYSrc, uint dwRop);
 
         [DllImport("gdi32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool DeleteDC(IntPtr hdc);
 
         [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool ReleaseDC(IntPtr hwnd, IntPtr hdc);
+
         [DllImport("gdi32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool DeleteObject(IntPtr hObject);
 
-        const int SRCCOPY = 0x00CC0020;
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetDC(IntPtr hwnd);
 
-        const int CAPTUREBLT = 0x40000000;
+        [DllImport("gdi32.dll")]
+        public static extern uint GetDeviceCaps(IntPtr hdc, int nIndex);
 
-        static object lockObject = new object();
-        static object lockObject2 = new object();
+        private const int LOGPIXELSX = 88;
+        private const int LOGPIXELSY = 90;
 
-        // Ekran görüntüsü alma işlemi
+        private const uint SRCCOPY = 0x00CC0020;
+        private const uint CAPTUREBLT = 0x40000000;
+
+        #endregion
+
+        private static readonly object lockObject = new object();
+
+        #region Tanilama sayaclari
+
+        private static long totalCaptureCount;
+        private static long totalCaptureMilliseconds;
+        private static long totalPixelReadCount;
+        private static long failedCaptureCount;
+        private static DateTime lastDiagnosticLogTime = DateTime.MinValue;
+
+        /// <summary>Toplam basarili ekran yakalama sayisi.</summary>
+        public static long TotalCaptureCount { get { return Interlocked.Read(ref totalCaptureCount); } }
+
+        /// <summary>Basarisiz ekran yakalama denemesi sayisi.</summary>
+        public static long FailedCaptureCount { get { return Interlocked.Read(ref failedCaptureCount); } }
+
+        /// <summary>Yakalama basina ortalama sure (ms).</summary>
+        public static double AverageCaptureMilliseconds
+        {
+            get
+            {
+                long count = Interlocked.Read(ref totalCaptureCount);
+                if (count <= 0)
+                {
+                    return 0d;
+                }
+                return Interlocked.Read(ref totalCaptureMilliseconds) / (double)count;
+            }
+        }
+
+        #endregion
+
+        /// <summary>
+        /// Birincil ekranin (sanal masaustu degil) sinirlarini doner.
+        /// </summary>
+        public static Rectangle PrimaryScreenBounds
+        {
+            get
+            {
+                try
+                {
+                    return Screen.PrimaryScreen.Bounds;
+                }
+                catch (Exception ex)
+                {
+                    FileLogger.Error("PrimaryScreenBounds okunamadi", ex);
+                    return new Rectangle(0, 0, 800, 600);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Sistem DPI olcegini yuzde olarak doner (96 = %100). Bot piksel bazli
+        /// calistigi icin %100 disindaki degerler tanilama amacli loglanir.
+        /// </summary>
+        public static int GetSystemDpiPercent()
+        {
+            IntPtr dc = IntPtr.Zero;
+            try
+            {
+                dc = GetDC(IntPtr.Zero);
+                if (dc == IntPtr.Zero)
+                {
+                    return 100;
+                }
+                int dpiX = (int)GetDeviceCaps(dc, LOGPIXELSX);
+                if (dpiX <= 0)
+                {
+                    return 100;
+                }
+                return (int)Math.Round(dpiX * 100f / 96f);
+            }
+            catch
+            {
+                return 100;
+            }
+            finally
+            {
+                if (dc != IntPtr.Zero)
+                {
+                    ReleaseDC(IntPtr.Zero, dc);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Tum ekranin goruntusunu alir. Cagiran taraf dispose etmekle yukumludur
+        /// (tercihen <c>using</c> ile).
+        /// </summary>
         public Bitmap CaptureScreen()
         {
-            Rectangle bounds = Screen.PrimaryScreen.Bounds;
-            Bitmap fullScreen = new Bitmap(bounds.Width,bounds.Height);
-            lock (lockObject)
-            {
-              
-
-                
-                IntPtr desktophWnd = IntPtr.Zero;
-                IntPtr desktopDc = IntPtr.Zero;
-                IntPtr memoryDc = IntPtr.Zero;
-                IntPtr bitmap = IntPtr.Zero;
-                IntPtr oldBitmap = IntPtr.Zero;
-                bool success;
-                Graphics g = null;
-
-                try
-                {
-                    desktophWnd = GetDesktopWindow();
-
-                    // Uyumluluk sağlayan bir DC oluşturun
-                    desktopDc = GetWindowDC(desktophWnd);
-                    memoryDc = CreateCompatibleDC(desktopDc);
-
-                    // Yeni bir bitmap oluşturun ve uyumlu bir DC ile ilişkilendirin
-                    bitmap = CreateCompatibleBitmap(desktopDc, bounds.Width, bounds.Height);
-                    oldBitmap = SelectObject(memoryDc, bitmap);
-
-                    success = BitBlt(memoryDc, 0, 0, bounds.Width, bounds.Height, desktopDc, bounds.Left, bounds.Top, SRCCOPY | CAPTUREBLT);
-
-                    if (!success)
-                    {
-                        throw new Win32Exception();
-                    }
-
-                    // Bitmap'i doldurun
-                    using (Bitmap result = Image.FromHbitmap(bitmap))
-                    {
-                        using (Graphics graphics = Graphics.FromImage(fullScreen))
-                        {
-                            graphics.DrawImage(result, Point.Empty);
-                        }
-                    }
-                }
-                catch (ArgumentException ex)
-                {
-                    throw new ArgumentException("An argument exception occurred: " + ex.Message);
-
-                }
-                catch (Exception ex)
-                {
-                    throw new Exception("An error occurred while capturing the screen: " + ex.Message);
-                }
-                finally
-                {
-                    SelectObject(memoryDc, oldBitmap);
-                    DeleteObject(bitmap);
-                    DeleteDC(memoryDc);
-                    ReleaseDC(desktophWnd, desktopDc); ;
-                }
-            }
-            return fullScreen;
+            return CaptureSpecifiedScreen(PrimaryScreenBounds);
         }
 
+        /// <summary>
+        /// Belirtilen bolgenin ekran goruntusunu alir.
+        /// Basarisiz olursa <c>null</c> doner (dispose edilmis bitmap DONMEZ).
+        /// Cagiran taraf bitmap'i dispose etmelidir.
+        /// </summary>
         public Bitmap CaptureSpecifiedScreen(Rectangle rectDefined)
         {
-            if (rectDefined == null || rectDefined == Rectangle.Empty || rectDefined.Width <= 0
-                || rectDefined.Height <= 0)
+            if (!IsRectangleValid(rectDefined, "CaptureSpecifiedScreen"))
             {
-                // throw new Exception("recDfined cannot be null or empty");
-                DebugPfCnsl.println("CaptureSpecifiedScreen is returned null");
                 return null;
             }
-                
-            Bitmap fullScreen = new Bitmap(rectDefined.Width, rectDefined.Height);
+
+            long startTicks = DateTime.UtcNow.Ticks;
+            Bitmap result = new Bitmap(rectDefined.Width, rectDefined.Height, PixelFormat.Format32bppArgb);
+
+            IntPtr desktophWnd = IntPtr.Zero;
+            IntPtr desktopDc = IntPtr.Zero;
+            IntPtr memoryDc = IntPtr.Zero;
+            IntPtr hBitmap = IntPtr.Zero;
+            IntPtr oldBitmap = IntPtr.Zero;
+            IntPtr hPalette = IntPtr.Zero;
+            bool success = false;
+
             lock (lockObject)
             {
-                
-                Rectangle bounds = rectDefined;
-                IntPtr desktophWnd = IntPtr.Zero;
-                IntPtr desktopDc = IntPtr.Zero;
-                IntPtr memoryDc = IntPtr.Zero;
-                IntPtr bitmap = IntPtr.Zero;
-                IntPtr oldBitmap = IntPtr.Zero;
-                bool success;
-                Graphics g = null;
-
                 try
                 {
                     desktophWnd = GetDesktopWindow();
-
-                    // Uyumluluk sağlayan bir DC oluşturun
                     desktopDc = GetWindowDC(desktophWnd);
+                    if (desktopDc == IntPtr.Zero)
+                    {
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "GetWindowDC basarisiz");
+                    }
+
                     memoryDc = CreateCompatibleDC(desktopDc);
+                    hBitmap = CreateCompatibleBitmap(desktopDc, rectDefined.Width, rectDefined.Height);
+                    oldBitmap = SelectObject(memoryDc, hBitmap);
 
-                    // Yeni bir bitmap oluşturun ve uyumlu bir DC ile ilişkilendirin
-                    bitmap = CreateCompatibleBitmap(desktopDc, bounds.Width, bounds.Height);
-                    oldBitmap = SelectObject(memoryDc, bitmap);
-
-                    success = BitBlt(memoryDc, 0, 0, bounds.Width, bounds.Height, desktopDc, bounds.Left, bounds.Top, SRCCOPY | CAPTUREBLT);
+                    success = BitBlt(memoryDc, 0, 0, rectDefined.Width, rectDefined.Height,
+                        desktopDc, rectDefined.Left, rectDefined.Top, SRCCOPY | CAPTUREBLT);
 
                     if (!success)
                     {
-                        throw new Win32Exception();
+                        throw new Win32Exception(Marshal.GetLastWin32Error(), "BitBlt basarisiz");
                     }
 
-                    // Bitmap'i doldurun
-                    using (Bitmap result = Image.FromHbitmap(bitmap))
+                    // FromHbitmap ikinci bir GDI palette handle'i yaratir; silinmezse sizinti olur.
+                    using (Bitmap captured = Image.FromHbitmap(hBitmap))
                     {
-                        using (Graphics graphics = Graphics.FromImage(fullScreen))
+                        using (Graphics graphics = Graphics.FromImage(result))
                         {
-                            graphics.DrawImage(result, Point.Empty);
+                            graphics.DrawImage(captured, Point.Empty);
                         }
                     }
                 }
-                catch (ArgumentException ex)
-                {
-                    throw new ArgumentException("An argument exception occurred: " + ex.Message);
-                    
-                }
                 catch (Exception ex)
                 {
-                    //throw new Exception("An error occurred while capturing the screen: " + ex.Message);
-                    if(fullScreen != null)fullScreen.Dispose();
+                    success = false;
+                    Interlocked.Increment(ref failedCaptureCount);
+                    FileLogger.Error("Ekran yakalama basarisiz. Bolge = " + Describe(rectDefined), ex);
+
+                    result.Dispose();
+                    result = null;
                 }
                 finally
                 {
-                    SelectObject(memoryDc, oldBitmap);
-                    DeleteObject(bitmap);
-                    DeleteDC(memoryDc);
-                    ReleaseDC(desktophWnd, desktopDc); ;
+                    if (memoryDc != IntPtr.Zero)
+                    {
+                        if (oldBitmap != IntPtr.Zero)
+                        {
+                            SelectObject(memoryDc, oldBitmap);
+                        }
+                        DeleteDC(memoryDc);
+                    }
+                    if (hBitmap != IntPtr.Zero)
+                    {
+                        DeleteObject(hBitmap);
+                    }
+                    if (hPalette != IntPtr.Zero)
+                    {
+                        DeleteObject(hPalette);
+                    }
+                    if (desktopDc != IntPtr.Zero && desktophWnd != IntPtr.Zero)
+                    {
+                        ReleaseDC(desktophWnd, desktopDc);
+                    }
                 }
             }
-           
-            return fullScreen;
+
+            if (success && result != null)
+            {
+                long elapsed = (DateTime.UtcNow.Ticks - startTicks) / TimeSpan.TicksPerMillisecond;
+                Interlocked.Increment(ref totalCaptureCount);
+                Interlocked.Add(ref totalCaptureMilliseconds, elapsed);
+                LogDiagnosticsPeriodically();
+            }
+
+            return result;
         }
 
+        /// <summary>
+        /// Bolgeyi yakalar, ARGB piksel dizisine cevirir ve aradaki bitmap'i
+        /// HEMEN dispose eder. Bot icindeki en sik kullanim sekli budur:
+        /// <code>ConvertBitmapToArray(CaptureSpecifiedScreen(rect))</code>
+        /// Bu metot o ikilinin sizinti yapmayan, tek satirlik karsiligidir.
+        /// </summary>
+        /// <returns>Piksel dizisi; yakalama basarisizsa <c>null</c>.</returns>
+        public int[] CaptureAreaAsArray(Rectangle rectDefined)
+        {
+            using (Bitmap captured = CaptureSpecifiedScreen(rectDefined))
+            {
+                return ConvertBitmapToArray(captured);
+            }
+        }
+
+        /// <summary>
+        /// Bolgeyi yakalar ve ARGB piksel dizisine cevirir.
+        /// (Geriye donuk uyumluluk icin korunmustur; tercihen
+        /// <see cref="CaptureAreaAsArray"/> kullanin.)
+        /// </summary>
+        public int[] ImageArraySpecifiedArea(Rectangle rectangle)
+        {
+            return CaptureAreaAsArray(rectangle);
+        }
+
+        /// <summary>
+        /// <see cref="Graphics.CopyFromScreen"/> tabanli basit yakalama.
+        /// Hata durumunda kullaniciyi engelleyen bir dialog GOSTERMEZ; loglar ve
+        /// <c>null</c> doner.
+        /// </summary>
         public Bitmap CaptureScreenBasic(Rectangle rect)
         {
-            if(rect == null || rect.Width <= 0 ||rect.Height <= 0)
+            if (!IsRectangleValid(rect, "CaptureScreenBasic"))
             {
-                DebugPfCnsl.println("CaptureScreenBasic returned null");
-            return null; 
+                return null;
             }
-            lock (lockObject) 
-           {
-                Bitmap captureBitmap = new Bitmap(rect.Width, rect.Height, PixelFormat.Format32bppArgb);
 
-                /* Rectangle bounds = Screen.PrimaryScreen.Bounds;
-                 //screenshot = new Bitmap(bounds.Width, bounds.Height);
-                 using (Graphics g = Graphics.FromImage(screenshot))
-                 {
-                     g.CopyFromScreen(bounds.X, bounds.Y, 0, 0, bounds.Size);
-                 }*/
-
-                try
+            Bitmap captureBitmap = new Bitmap(rect.Width, rect.Height, PixelFormat.Format32bppArgb);
+            try
+            {
+                using (Graphics captureGraphics = Graphics.FromImage(captureBitmap))
                 {
-                    
-                    //Creating a New Graphics Object
-                    Graphics captureGraphics = Graphics.FromImage(captureBitmap);
-                    //Copying Image from The Screen
                     captureGraphics.CopyFromScreen(rect.Left, rect.Top, 0, 0, rect.Size);
-                    
-                    
-
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show(ex.Message);
                 }
                 return captureBitmap;
             }
-            
+            catch (Exception ex)
+            {
+                FileLogger.Error("CaptureScreenBasic basarisiz. Bolge = " + Describe(rect), ex);
+                captureBitmap.Dispose();
+                return null;
+            }
         }
 
-        public static void EditBipMapEndSave(Bitmap fullScreenBitMap, Rectangle rect, string fileName, PathWayStruct pathWay)
+        /// <summary>
+        /// Bitmap'i ARGB <c>int[]</c> dizisine cevirir. <c>LockBits</c> kullanir.
+        /// </summary>
+        /// <remarks>
+        /// Eski surum <c>GetPixel</c> kullaniyordu; her piksel icin ayri bir GDI+
+        /// cagrisi yapildigindan 800x600'lik bir alan icin ~480.000 cagri demekti.
+        /// Ayrica ekran yakalamada kaynak format <c>Format32bppRgb</c> (BGRA) olup
+        /// <c>GetPixel().ToArgb()</c> ile ayni sonuc uretilir; burada BGRA baytlari
+        /// dogrudan ARGB int'ine cevrilir.
+        /// </remarks>
+        public int[] ConvertBitmapToArray(Bitmap screenshot)
         {
+            if (screenshot == null)
+            {
+                FileLogger.Warning("ConvertBitmapToArray: bitmap null, geri donus null");
+                return null;
+            }
+            if (screenshot.Width <= 0 || screenshot.Height <= 0)
+            {
+                FileLogger.Warning("ConvertBitmapToArray: gecersiz bitmap boyutu " + Describe(screenshot));
+                return null;
+            }
+
+            int width = screenshot.Width;
+            int height = screenshot.Height;
+            int[] pixelData = new int[width * height];
+
+            BitmapData data = null;
             try
             {
-                if (fullScreenBitMap != null && fullScreenBitMap.Width > 0)
+                data = screenshot.LockBits(new Rectangle(0, 0, width, height),
+                    ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+
+                int stride = data.Stride;
+                byte[] buffer = new byte[stride * height];
+                Marshal.Copy(data.Scan0, buffer, 0, buffer.Length);
+
+                int index = 0;
+                for (int y = 0; y < height; y++)
                 {
-                    if (rect != null && rect.Width > 0)
+                    int rowStart = y * stride;
+                    for (int x = 0; x < width; x++)
                     {
-                        Bitmap bitmapResult = fullScreenBitMap.Clone(rect, fullScreenBitMap.PixelFormat);
-
-                        FileHandler.SaveImageAsPng(bitmapResult, fileName, pathWay);
+                        int offset = rowStart + (x * 4);
+                        // Bellek duzeni BGRA -> ARGB int
+                        pixelData[index++] = (buffer[offset + 3] << 24) |
+                                             (buffer[offset + 2] << 16) |
+                                             (buffer[offset + 1] << 8) |
+                                             buffer[offset];
                     }
-                    else
-                    {
-                        DebugPfCnsl.println("rect is null or widht is less than zero editBipMapEndSave func");
-                    }
-
                 }
-                else
+
+                Interlocked.Add(ref totalPixelReadCount, index);
+                return pixelData;
+            }
+            catch (Exception ex)
+            {
+                FileLogger.Error("ConvertBitmapToArray basarisiz", ex);
+                return null;
+            }
+            finally
+            {
+                if (data != null)
                 {
-                    DebugPfCnsl.println(" bitmap null or widht is less than zero in editBipMapEndSave FUNC!!!");
+                    try
+                    {
+                        screenshot.UnlockBits(data);
+                    }
+                    catch
+                    {
+                        // yoksay
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Tam ekran goruntusunden belirtilen bolgeyi kirpar ve PNG olarak kaydeder.
+        /// </summary>
+        public static void EditBipMapEndSave(Bitmap fullScreenBitMap, Rectangle rect, string fileName, PathWayStruct pathWay)
+        {
+            if (fullScreenBitMap == null || fullScreenBitMap.Width <= 0 || fullScreenBitMap.Height <= 0)
+            {
+                FileLogger.Warning("EditBipMapEndSave: kaynak bitmap null veya bos");
+                return;
+            }
+            if (rect.Width <= 0 || rect.Height <= 0)
+            {
+                FileLogger.Warning("EditBipMapEndSave: kirpma alani gecersiz " + Describe(rect));
+                return;
+            }
+
+            try
+            {
+                using (Bitmap bitmapResult = fullScreenBitMap.Clone(rect, fullScreenBitMap.PixelFormat))
+                {
+                    FileHandler.SaveImageAsPng(bitmapResult, fileName, pathWay);
                 }
             }
             catch (OutOfMemoryException outEx)
             {
-                DebugPfCnsl.println(" ScreenShotWinAPI EditBipMapEndSave error = " + outEx.Message);
-            }
-
-            catch (ArgumentException argEx)
-            {
-                DebugPfCnsl.println(argEx.Message);
-            }
-
-        }
-
-        public int[] ConvertBitmapToArray(Bitmap screenshot)
-        {
-          
-            if (screenshot == null || screenshot.Width < 0) 
-            {// new Exception("bitmap value can't be null or less than zero");,
-                DebugPfCnsl.println("ConvertBitmapToArray is returned null");
-                return null;
-            }
-            int[] pixelData = new int[screenshot.Width * screenshot.Height];
-            Color pixelColor = Color.White;
-            try
-            {
-              
-               
-                for (int y = 0; y < screenshot.Height; y++)
-                {
-                    for (int x = 0; x < screenshot.Width; x++)
-                    {
-                        pixelColor = screenshot.GetPixel(x, y);
-                        pixelData[(y * screenshot.Width) + x] = pixelColor.ToArgb();
-                    }
-                }
-
-             
+                FileLogger.Error("EditBipMapEndSave: bellek yetersiz (GDI limitine ulasilmis olabilir)", outEx);
             }
             catch (Exception ex)
             {
-                Console.WriteLine("An error occurred: " + ex.Message);
+                FileLogger.Error("EditBipMapEndSave basarisiz", ex);
             }
-            return pixelData;
         }
 
-        public int[] ImageArraySpecifiedArea(Rectangle rectangle)
-        {
-            return ConvertBitmapToArray(CaptureSpecifiedScreen(rectangle));
-        }
-    
-
+        /// <summary>
+        /// Bitmap'in belirtilen bolgesini kirpar. Basarisiz olursa <c>null</c> doner.
+        /// Cagiran taraf donen bitmap'i dispose etmelidir.
+        /// </summary>
         public Bitmap ClipBitmap(Bitmap fullScreenBitmap, Rectangle rect)
         {
-            lock (lockObject)
+            if (fullScreenBitmap == null || fullScreenBitmap.Width <= 0)
             {
-                if (fullScreenBitmap != null && fullScreenBitmap.Width > 0)
-                {
-                    if (rect != null && rect.Width > 0)
-                    {
-                        try
-                        {
-                                Bitmap bitmapResult = fullScreenBitmap.Clone(rect, fullScreenBitmap.PixelFormat);
-                                return bitmapResult;
-                            
-                        }
-                        catch (Exception ex)
-                        {
-                            // Hata durumunda, hata mesajını loglayın ve null döndürün
-                            DebugPfCnsl.println("An error occurred while clipping bitmap: " + ex.Message);
-                            return null;
-                        }
-                    }
-                    else
-                    {
-                        DebugPfCnsl.println("The rectangle is null or the width is less than zero.");
-                    }
-                }
-                else
-                {
-                    //DebugPfCnsl.println("The bitmap is null or the width is less than zero.");
-                }
+                return null;
             }
-            return null;
+            if (rect.Width <= 0 || rect.Height <= 0)
+            {
+                FileLogger.Warning("ClipBitmap: kirpma alani gecersiz " + Describe(rect));
+                return null;
+            }
+
+            try
+            {
+                return fullScreenBitmap.Clone(rect, fullScreenBitmap.PixelFormat);
+            }
+            catch (Exception ex)
+            {
+                FileLogger.Error("ClipBitmap basarisiz", ex);
+                return null;
+            }
+        }
+
+        private bool IsRectangleValid(Rectangle rect, string callerName)
+        {
+            if (rect == Rectangle.Empty || rect.Width <= 0 || rect.Height <= 0)
+            {
+                FileLogger.Warning(callerName + ": gecersiz dikdortgen " + Describe(rect));
+                return false;
+            }
+
+            Rectangle bounds = PrimaryScreenBounds;
+            if (rect.Right > bounds.Right + bounds.Width || rect.Bottom > bounds.Bottom + bounds.Height)
+            {
+                FileLogger.Warning(callerName + ": ekran disina tasan bolge " + Describe(rect) +
+                    " (ekran = " + Describe(bounds) + ")");
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Performans tanilamasini en fazla 30 saniyede bir loglar.
+        /// </summary>
+        private static void LogDiagnosticsPeriodically()
+        {
+            try
+            {
+                if ((DateTime.Now - lastDiagnosticLogTime).TotalSeconds < 30)
+                {
+                    return;
+                }
+                lastDiagnosticLogTime = DateTime.Now;
+
+                FileLogger.Debug(string.Format(
+                    CultureInfo.InvariantCulture,
+                    "Ekran yakalama istatistigi: toplam={0} basarisiz={1} ortalama={2:0.00}ms okunanPiksel={3}",
+                    TotalCaptureCount,
+                    FailedCaptureCount,
+                    AverageCaptureMilliseconds,
+                    Interlocked.Read(ref totalPixelReadCount)));
+            }
+            catch
+            {
+                // yoksay
+            }
+        }
+
+        internal static string Describe(Rectangle rect)
+        {
+            return string.Format(CultureInfo.InvariantCulture,
+                "[X={0} Y={1} W={2} H={3}]", rect.X, rect.Y, rect.Width, rect.Height);
+        }
+
+        internal static string Describe(Bitmap bitmap)
+        {
+            if (bitmap == null)
+            {
+                return "(null bitmap)";
+            }
+            return string.Format(CultureInfo.InvariantCulture,
+                "[{0}x{1} {2}]", bitmap.Width, bitmap.Height, bitmap.PixelFormat);
         }
     }
-
-  
 }

@@ -39,6 +39,9 @@ namespace MusicPlayerApp
         private GameObjectCoordinates coor;
 
         private TelegramBot telegramBot;
+        /// <summary>checkBoxTelegram.Checked programatik olarak değiştirilirken olayın
+        /// yeniden tetiklenmesini engeller.</summary>
+        private bool isTelegramCheckChanging;
         //ChatHandlerForm chatHandlerForm;
 
         private static FullScreen fullScreenStatic;
@@ -64,16 +67,54 @@ namespace MusicPlayerApp
         {
             InitializeComponent();
             Thread.CurrentThread.Name = "Main Thread";
-            DebugPfCnsl.println( "MainForm constructor is called");
+            DebugPfCnsl.println("MainForm constructor is called");
             DebugPfCnsl.println(Thread.CurrentThread.Name);
+
+            try
+            {
+                InitializeForm();
+            }
+            catch (Exception ex)
+            {
+                // Açılıştaki hatalar eskiden Windows'un anlaşılmaz "uygulama düzgün
+                // başlatılamadı" penceresiyle görünüyordu. Artık neden loglanıyor ve
+                // kullanıcıya Türkçe açıklanıyor.
+                FileLogger.Error("Ana form başlatılamadı", ex);
+                MessageBox.Show(
+                    "Program başlatılamadı." + Environment.NewLine + Environment.NewLine +
+                    "Hata: " + ex.Message + Environment.NewLine + Environment.NewLine +
+                    "Olası nedenler:" + Environment.NewLine +
+                    "  • Program klasöründeki ScreenShot altındaki .png dosyaları eksik veya taşınmış." + Environment.NewLine +
+                    "  • Metin2 açık değil ya da ekran çözünürlüğü/ölçeklendirme (DPI) farklı." + Environment.NewLine +
+                    "  • Program yönetici yetkisi olmadan çalıştırıldı." + Environment.NewLine + Environment.NewLine +
+                    "Ayrıntılar günlük dosyasında: " + FileLogger.LogDirectory,
+                    "Başlatma Hatası", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                throw;
+            }
+
             InitializeToolTip();
+        }
+
+        /// <summary>
+        /// Formun çalışma zamanı bağımlılıklarını (görüntü işleme, iş parçacıkları,
+        /// koordinatlar, tam ekran penceresi, sıcak tuş) hazırlar.
+        /// </summary>
+        /// <remarks>
+        /// Kurucudan ayrıldı; böylece açılış hatası tek bir <c>try/catch</c> içinde
+        /// yakalanıp kullanıcıya anlamlı bir mesaj gösterilebiliyor.
+        /// </remarks>
+        private void InitializeForm()
+        {
             pictureBox = pictureBoxMainForm;
             labelCopyStartStatus = labelStartStatus;
             labelCopyLevelFarmStatus = labelLevelFarmStatus;
             labelCopyEnergyCristalStatus = labelEnergyCristal;
             buttonFishingStartCopy = buttonFishingStart;
             buttonLevelFarmStartCopy = buttonLevelStart;
-            imageObjects = new ImageObjects();
+            // Referans PNG'ler yalnızca bir kez yüklenir (singleton). Eskiden burada
+            // `new ImageObjects()` çağrılıyordu; bu, ~70 PNG'yi ikinci kez okuyup her
+            // biri için dispose edilmeyen Bitmap yaratıyordu (GDI nesne sızıntısı).
+            imageObjects = ImageObjects.Instance;
             screenShot = new ScreenShotWinAPI();
             threadsHandler = new ThreadsHandler(imageObjects);
             fullScreenStatic = new FullScreen();
@@ -87,8 +128,9 @@ namespace MusicPlayerApp
             LoadComboBox();
             LoadCheckBoxes();
             EnableOrDisableTimerCheckBox(false);
-            VersionChecker.CheckForUpdate();
-
+            // Surum denetimi arka planda calisir; form acilisini bloklamaz.
+            // (VersionChecker artik MusicPlayerApp.Sources ad alaninda.)
+            MusicPlayerApp.Sources.VersionChecker.CheckForUpdate();
         }
 
         protected override void WndProc(ref Message m)
@@ -102,18 +144,18 @@ namespace MusicPlayerApp
                 if(!ThreadGlobals.isFishingStopped)
                 {                   
                     buttonFishingStart.PerformClick();
-                    labelStartStatus.Text = "Game is stopped via hot keys";
+                    labelStartStatus.Text = "Ctrl+O ile durduruldu";
                 }
                 if (!ThreadGlobals.isLevelFarmStopped)
                 {
                     buttonLevelStart.PerformClick();
-                    labelLevelFarmStatus.Text = "Game is stopped via hot keys";
+                    labelLevelFarmStatus.Text = "Ctrl+O ile durduruldu";
 
                 }
                 if(!ThreadGlobals.isEnergyCristalStopped)
                 {
                     buttonEnergyStart.PerformClick();
-                    labelEnergyCristal.Text = "Game is stopped via hot keys";
+                    labelEnergyCristal.Text = "Ctrl+O ile durduruldu";
                 }
               /*  if (TelegramBot.TELEGRAM_BOT_IS_READY)
                 {
@@ -140,25 +182,25 @@ namespace MusicPlayerApp
                     {
                         ThreadGlobals.isFishingStopped = false;
                         threadsHandler.Start();
-                        buttonFishingStartCopy.Text = "Fishing Stop";
+                        buttonFishingStartCopy.Text = "DURDUR";
 
                     }
                     else
                     {
                         ThreadGlobals.isFishingStopped = true;
                         threadsHandler.Stop();
-                        threadsHandler.HandleFormElement(labelCopyStartStatus, "Fishing Bot is stopped");
-                        buttonFishingStartCopy.Text = "Fishing Start";
+                        threadsHandler.HandleFormElement(labelCopyStartStatus, "Balık botu durduruldu");
+                        buttonFishingStartCopy.Text = "BAŞLAT";
                     }
                 }
                 else
                 {
-                    MessageBox.Show("Level Kasma Aktifken Balıkçılığı Başlatamazsın", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Level Kasma Aktifken Balıkçılığı Başlatamazsın", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             else
             {
-                MessageBox.Show("Enerji Kristali Aktifken Balıkçılığı Başlatamazsın", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Enerji Kristali Aktifken Balıkçılığı Başlatamazsın", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
         }
@@ -171,26 +213,20 @@ namespace MusicPlayerApp
                 {
                     if (ThreadGlobals.isLevelFarmStopped)
                     {
-                        if (ThreadGlobals.HP_SP_RATE[0] == 0 || ThreadGlobals.HP_SP_RATE[1] == 0)
+                        if (ThreadGlobals.IsHpSpRateEmpty())
                         {
                             if (int.TryParse(textBoxHpRate.Text, out int value) &&
                                 int.TryParse(textBoxSpRate.Text, out int spValue))
                             {
-                                ThreadGlobals.HP_SP_RATE[0] = value;
-                                ThreadGlobals.HP_SP_RATE[1] = spValue;
+                                ThreadGlobals.SetHpSpRate(value, spValue);
                             }
-
                         }
-                        if (ThreadGlobals.STATUS_PRIORITY[0] == 0 || ThreadGlobals.STATUS_PRIORITY[1] == 0
-                            || ThreadGlobals.STATUS_PRIORITY[2] == 0 || ThreadGlobals.STATUS_PRIORITY[3] == 0)
+                        if (ThreadGlobals.IsStatusPriorityEmpty())
                         {
                             if (int.TryParse(textBoxHp.Text, out int hpStatusPrio) && int.TryParse(textBoxSp.Text, out int spStatusPrio)
                                 && int.TryParse(textBoxStr.Text, out int strStatusPrio) && int.TryParse(textBoxDex.Text, out int dexStatusPrio))
                             {
-                                ThreadGlobals.STATUS_PRIORITY[0] = hpStatusPrio;
-                                ThreadGlobals.STATUS_PRIORITY[1] = spStatusPrio;
-                                ThreadGlobals.STATUS_PRIORITY[2] = strStatusPrio;
-                                ThreadGlobals.STATUS_PRIORITY[3] = dexStatusPrio;
+                                ThreadGlobals.SetStatusPriority(hpStatusPrio, spStatusPrio, strStatusPrio, dexStatusPrio);
                             }
                         }
                         ThreadGlobals.isLevelFarmStopped = false;
@@ -201,17 +237,17 @@ namespace MusicPlayerApp
                     {
                         ThreadGlobals.isLevelFarmStopped = true;
                         threadsHandler.Stop();
-                        threadsHandler.HandleFormElement(labelLevelFarmStatus, "Level Farm Bot is stopped");
+                        threadsHandler.HandleFormElement(labelLevelFarmStatus, "Level kasma botu durduruldu");
                         buttonLevelStart.Text = "START";
                     }
                 }
                 else
                 {
-                    MessageBox.Show("Balıkçılık aktifken Level Farm butonuna basamazsın", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Balıkçılık aktifken Level Farm butonuna basamazsın", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }else
             {
-                MessageBox.Show("Enerji kristali aktifken Level Farm butonuna basamazsın", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Enerji kristali aktifken Level Farm butonuna basamazsın", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
         }
@@ -227,25 +263,25 @@ namespace MusicPlayerApp
                         ThreadGlobals.isEnergyCristalStopped = false;
                         threadsHandler.Start();
                         buttonEnergyStart.Text = "STOP";
-                        threadsHandler.HandleFormElement(labelEnergyCristal, "Energy Bot is started");
+                        threadsHandler.HandleFormElement(labelEnergyCristal, "Enerji botu başlatıldı");
                     }
                     else
                     {
                         ThreadGlobals.isEnergyCristalStopped = true;
                         threadsHandler.Stop();
                         buttonEnergyStart.Text = "START";
-                        threadsHandler.HandleFormElement(labelEnergyCristal, "Energy Bot is stopped");
+                        threadsHandler.HandleFormElement(labelEnergyCristal, "Enerji botu durduruldu");
                     }
                 }
                 else
                 {
-                    MessageBox.Show("Level ve Farm aktifken Enerji kristal Start butonuna basamazsın", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Level ve Farm aktifken Enerji kristal Start butonuna basamazsın", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
                 }
             }
             else
             {
-                MessageBox.Show("Balıkçılık aktifken Enerji kristal Start butonuna basamazsın", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Balıkçılık aktifken Enerji kristal Start butonuna basamazsın", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
         private void buttonScreenShot_MouseClick(object sender, MouseEventArgs e)
@@ -257,7 +293,11 @@ namespace MusicPlayerApp
 
         private void MainForm_Load(object sender, EventArgs e)
         {
-            telegramBot = new TelegramBot(imageObjects);
+            // TelegramBot artik burada OLUSTURULMUYOR: eski kod, kullanıcı Telegram'ı
+            // hiç kullanmasa bile geçersiz ("Add Your Token") token ile bir istemci
+            // oluşturup uygulama açılışında hata üretiyordu. Alıcı döngüsü yalnızca
+            // kullanıcı Telegram'ı etkinleştirdiğinde başlatılır (bakınız: checkBoxTelegram).
+            InitializeTelegramTab();
             DebugPfCnsl.println("Telegram Bot is Starting");
         }
      
@@ -273,7 +313,7 @@ namespace MusicPlayerApp
                 if (arrayTextBoxResult[rectWidth] <= 0)
                 {
 
-                    MessageBox.Show("Please enter specified number (Exmp: '10,20,100,50').", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Please enter specified number (Exmp: '10,20,100,50').", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     threadsHandler.HandleFormElement(textBoxRect, "1,1,1,1");
                     return;
                 }
@@ -288,10 +328,24 @@ namespace MusicPlayerApp
                 Rectangle rect = new Rectangle(arrayTextBoxResult[rectX], arrayTextBoxResult[rectY],
                      arrayTextBoxResult[rectWidth], arrayTextBoxResult[rectHeight]);
 
-                if (rect != null && rect != Rectangle.Empty)
+                if (rect.Width > 0 && rect.Height > 0)
                 {
                     Bitmap resultBitMap = screenShot.CaptureSpecifiedScreen(rect);
+                    if (resultBitMap == null)
+                    {
+                        MessageBox.Show("Ekran görüntüsü alınamadı. Lütfen dikdörtgen " +
+                            "bilgilerini ekran çözünürlüğünüz ile karşılaştırın.",
+                            "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        return;
+                    }
+
+                    // Onceki gorsel serbest birakilmazsa her cekimde bir bitmap birikir.
+                    Image previousImage = pictureBoxMainForm.Image;
                     pictureBoxMainForm.Image = resultBitMap;
+                    if (previousImage != null)
+                    {
+                        previousImage.Dispose();
+                    }
 
                     FileHandler.SaveImageAsPng(resultBitMap, fileName, pathWay);
                 }
@@ -299,7 +353,7 @@ namespace MusicPlayerApp
             }
             else
             {
-                MessageBox.Show("Please enter valid name (Exmp = test)", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lütfen geçerli bir dosya adı girin (örnek: test)", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 threadsHandler.HandleFormElement(textBoxFileName, "test");
             }
                
@@ -324,7 +378,7 @@ namespace MusicPlayerApp
                 if( x > bounds.Width ||width >  bounds.Width || y > bounds.Height || height > bounds.Height )
                 {
                     MessageBox.Show(" Width or Height that your determined is greater than your computer " +
-                        "screen resolution. Your resolution values = " + bounds.Width + " " + bounds.Height, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        "screen resolution. Your resolution values = " + bounds.Width + " " + bounds.Height, "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
                 arrayTextBoxResult[rectX] = x; arrayTextBoxResult[rectY] = y;
@@ -350,7 +404,7 @@ namespace MusicPlayerApp
             }
             else
             {
-                MessageBox.Show("Please enter specified number (Exmp: '10 20 100 50').", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Please enter specified number (Exmp: '10 20 100 50').", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -358,7 +412,7 @@ namespace MusicPlayerApp
         {
             if(string.IsNullOrWhiteSpace(textBoxFileName.Text))
             {
-                MessageBox.Show("Please enter valid name (Exmp = test)", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lütfen geçerli bir dosya adı girin (örnek: test)", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 fileName = null;
                 return;
             }
@@ -550,7 +604,7 @@ namespace MusicPlayerApp
                 EnableOrDisableTimerCheckBox(true);
                 if(ThreadGlobals.isFishingStopped)
                 {
-                    labelStartStatus.Text = "Enter times as minute unit";
+                    labelStartStatus.Text = "Süreleri dakika olarak girin";
                 }
                 
             }
@@ -560,7 +614,7 @@ namespace MusicPlayerApp
                 EnableOrDisableTimerCheckBox(false);
                 if(ThreadGlobals.isFishingStopped)
                 {
-                    labelStartStatus.Text = "";
+                    labelStartStatus.Text = "Hazır";
                 }
                 
             }
@@ -577,7 +631,7 @@ namespace MusicPlayerApp
             }
             else
             {
-                MessageBox.Show("Please enter just a number as 'minute' unit (Exmp 3 or 35).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Please enter just a number as 'minute' unit (Exmp 3 or 35).", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
         }
@@ -592,7 +646,7 @@ namespace MusicPlayerApp
             }
             else
             {
-                MessageBox.Show("Please enter just a number as 'minute' unit (Exmp 3 or 35).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Please enter just a number as 'minute' unit (Exmp 3 or 35).", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
         }
@@ -610,7 +664,7 @@ namespace MusicPlayerApp
             }
             else
             {
-                MessageBox.Show("Please enter two numbers as 'minute' unit (Exmp 2 5 or 5 9).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Please enter two numbers as 'minute' unit (Exmp 2 5 or 5 9).", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
         }
@@ -626,17 +680,12 @@ namespace MusicPlayerApp
             }
             else
             {
-                MessageBox.Show("Please enter just a number as 'minute' unit (Exmp 3 or 35).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Please enter just a number as 'minute' unit (Exmp 3 or 35).", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
         }
 
     
-
-        private void tabPage1_Click(object sender, EventArgs e)
-        {
-
-        }
 
 
         private void buttonCheckChat_Click(object sender, EventArgs e)
@@ -659,15 +708,12 @@ namespace MusicPlayerApp
                 && int.TryParse(valueStr, out int strPriority) && int.TryParse(valueDex, out int dexPriority)) 
             {
 
-                ThreadGlobals.STATUS_PRIORITY[0] = hpPriority;
-                ThreadGlobals.STATUS_PRIORITY[1] = spPriority;
-                ThreadGlobals.STATUS_PRIORITY[2] = strPriority;
-                ThreadGlobals.STATUS_PRIORITY[3] = dexPriority;
-                DebugPfCnsl.PrintArray(ThreadGlobals.STATUS_PRIORITY);
+                ThreadGlobals.SetStatusPriority(hpPriority, spPriority, strPriority, dexPriority);
+                DebugPfCnsl.PrintArray(ThreadGlobals.GetStatusPriority());
             }
             else
             {
-                MessageBox.Show("Lütfen öncelik sırasını sayılar ile belirleyiniz (örnek hp = 4 sp = 3 dex = 2 str = 1).", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lütfen öncelik sırasını sayılar ile belirleyiniz (örnek hp = 4 sp = 3 dex = 2 str = 1).", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
         }
@@ -675,14 +721,14 @@ namespace MusicPlayerApp
         private void trackBarHp_ValueChanged(object sender, EventArgs e)
         {
             textBoxHpRate.Text = trackBarHp.Value.ToString();
-            ThreadGlobals.HP_SP_RATE[0] = trackBarHp.Value;
+            ThreadGlobals.SetHpSpRate(trackBarHp.Value, ThreadGlobals.GetHpSpRate()[1]);
            // DebugPfCnsl.println("hp value for trackHpVar = " + trackBarHp.Value);
         }
 
         private void trackBarSp_ValueChanged(object sender, EventArgs e)
         {
             textBoxSpRate.Text = trackBarSp.Value.ToString();
-            ThreadGlobals.HP_SP_RATE[1] = trackBarSp.Value;
+            ThreadGlobals.SetHpSpRate(ThreadGlobals.GetHpSpRate()[0], trackBarSp.Value);
            // DebugPfCnsl.println("sp value for trackspVar = " + trackBarSp.Value);
         }
 
@@ -694,15 +740,19 @@ namespace MusicPlayerApp
 
             if (int.TryParse(valueHpRate, out int hpRate) && int.TryParse(valueSpRate, out int spRate))
             {
-                if((hpRate > 0 && hpRate < 101) && (spRate > 0 && spRate < 101))
+                if ((hpRate > 0 && hpRate < 101) && (spRate > 0 && spRate < 101))
                 {
-                    ThreadGlobals.HP_SP_RATE[0] = hpRate;
-                    ThreadGlobals.HP_SP_RATE[1] = spRate;
+                    ThreadGlobals.SetHpSpRate(hpRate, spRate);
 
                     trackBarHp.Value = hpRate;
                     trackBarSp.Value = spRate;
 
-                    DebugPfCnsl.PrintArray(ThreadGlobals.HP_SP_RATE);
+                    DebugPfCnsl.PrintArray(ThreadGlobals.GetHpSpRate());
+                }
+                else
+                {
+                    MessageBox.Show("Lütfen yüzde değerini 1 ile 100 arasında bir sayı ile giriniz.",
+                        "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
               
              
@@ -710,7 +760,7 @@ namespace MusicPlayerApp
             }
             else
             {
-                MessageBox.Show("Lütfen yüzdelik belirlemesini rakam ile giriniz 1 ile 100 arası.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lütfen yüzdelik belirlemesini rakam ile giriniz 1 ile 100 arası.", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
         }
@@ -730,13 +780,17 @@ namespace MusicPlayerApp
             {
                 if ((hpRate > 0 && hpRate < 101) && (spRate > 0 && spRate < 101))
                 {
-                    ThreadGlobals.HP_SP_RATE[0] = hpRate;
-                    ThreadGlobals.HP_SP_RATE[1] = spRate;
+                    ThreadGlobals.SetHpSpRate(hpRate, spRate);
 
                     trackBarHp.Value = hpRate;
                     trackBarSp.Value = spRate;
 
-                    DebugPfCnsl.PrintArray(ThreadGlobals.HP_SP_RATE);
+                    DebugPfCnsl.PrintArray(ThreadGlobals.GetHpSpRate());
+                }
+                else
+                {
+                    MessageBox.Show("Lütfen yüzde değerini 1 ile 100 arasında bir sayı ile giriniz.",
+                        "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
 
 
@@ -744,95 +798,253 @@ namespace MusicPlayerApp
             }
             else
             {
-                MessageBox.Show("Lütfen yüzdelik belirlemesini rakam ile giriniz 1 ile 100 arası.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lütfen yüzdelik belirlemesini rakam ile giriniz 1 ile 100 arası.", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
         }
 
         private void checkBoxTelegram_CheckedChanged(object sender, EventArgs e)
         {
-            if(checkBoxTelegram.Checked)
+            // Yeniden giriş koruması (token yokken kutucuğu programatik olarak geri
+            // alıyoruz; bu, aynı olayın ikinci kez tetiklenmesini engeller).
+            if (isTelegramCheckChanging)
             {
+                return;
+            }
+
+            if (checkBoxTelegram.Checked)
+            {
+                if (!TelegramBot.IsTokenConfigured)
+                {
+                    MessageBox.Show(
+                        "Telegram bot token'ı yapılandırılmamış.\n\n" +
+                        "1) Telegram'da @BotFather ile bir bot oluşturun ve size verilen token'ı kopyalayın.\n" +
+                        "2) Bu sekmedeki 'Bot Token' kutusuna yapıştırıp 'Token'ı Kaydet' düğmesine basın.\n\n" +
+                        "Alternatif olarak token'ı App.config içindeki TelegramBotToken anahtarına da yazabilirsiniz.",
+                        "Telegram Token Gerekli", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                    isTelegramCheckChanging = true;
+                    checkBoxTelegram.Checked = false;
+                    isTelegramCheckChanging = false;
+
+                    UpdateTelegramStatusLabel(Color.Red, "Token yapılandırılmadı — Telegram kapalı");
+                    return;
+                }
+
+                if (!EnsureTelegramBot())
+                {
+                    isTelegramCheckChanging = true;
+                    checkBoxTelegram.Checked = false;
+                    isTelegramCheckChanging = false;
+
+                    UpdateTelegramStatusLabel(Color.Red, "Telegram başlatılamadı — log dosyasına bakınız");
+                    return;
+                }
+
                 ThreadGlobals.isTelegramBotActive = true;
+
+                if (!telegramBot.StartReceiver())
+                {
+                    ThreadGlobals.isTelegramBotActive = false;
+                    isTelegramCheckChanging = true;
+                    checkBoxTelegram.Checked = false;
+                    isTelegramCheckChanging = false;
+
+                    UpdateTelegramStatusLabel(Color.Red, "Telegram başlatılamadı (token hatalı olabilir)");
+                    return;
+                }
+
+                UpdateTelegramStatusLabel(Color.Magenta, "Telegram aktif — bota mesaj gönderip 'Test Et' deyin");
             }
             else
             {
-                ThreadGlobals.isTelegramBotActive=false;
+                ThreadGlobals.isTelegramBotActive = false;
+                TelegramBot.TELEGRAM_BOT_IS_READY = false;
+                if (telegramBot != null)
+                {
+                    telegramBot.StopReceiver();
+                }
+                UpdateTelegramStatusLabel(Color.Gray, "Telegram pasif");
+            }
+        }
+
+        /// <summary>
+        /// TelegramBot örneğini (yalnızca ilk kez) oluşturur.
+        /// </summary>
+        private bool EnsureTelegramBot()
+        {
+            if (telegramBot != null)
+            {
+                return true;
+            }
+            try
+            {
+                telegramBot = new TelegramBot(imageObjects);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                FileLogger.Error("TelegramBot oluşturulamadı", ex);
+                MessageBox.Show("Telegram botu başlatılamadı: " + ex.Message,
+                    "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Telegram sekmesinin başlangıç durumunu hazırlar (token kutusunu doldurur,
+        /// durumu etikete yazar).
+        /// </summary>
+        private void InitializeTelegramTab()
+        {
+            try
+            {
+                textBoxTelegramToken.Text = TelegramBot.GetToken();
+            }
+            catch (Exception ex)
+            {
+                FileLogger.Warning("Telegram token kutusu doldurulamadı: " + ex.Message);
+            }
+
+            if (TelegramBot.IsTokenConfigured)
+            {
+                UpdateTelegramStatusLabel(Color.Gray, "Token hazır — 'Telegram Bot Aktif Et' kutusunu işaretleyin");
+            }
+            else
+            {
+                UpdateTelegramStatusLabel(Color.Red, "Token yapılandırılmadı — Telegram kapalı");
+            }
+        }
+
+        /// <summary>Durum etiketini güvenli biçimde günceller.</summary>
+        private void UpdateTelegramStatusLabel(Color color, string text)
+        {
+            try
+            {
+                if (labelTelegramStatus == null || labelTelegramStatus.IsDisposed)
+                {
+                    return;
+                }
+                if (labelTelegramStatus.InvokeRequired)
+                {
+                    labelTelegramStatus.BeginInvoke((MethodInvoker)delegate
+                    {
+                        labelTelegramStatus.ForeColor = color;
+                        labelTelegramStatus.Text = text;
+                    });
+                    return;
+                }
+                labelTelegramStatus.ForeColor = color;
+                labelTelegramStatus.Text = text;
+            }
+            catch (Exception ex)
+            {
+                FileLogger.Debug("Telegram durum etiketi güncellenemedi: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// "Token'ı Kaydet" düğmesi: token'ı exe klasöründeki telegram.ini dosyasına yazar.
+        /// </summary>
+        private void buttonTelegramTokenSave_Click(object sender, EventArgs e)
+        {
+            string token = textBoxTelegramToken.Text == null
+                ? string.Empty
+                : textBoxTelegramToken.Text.Trim();
+
+            if (TelegramBot.SaveToken(token))
+            {
+                UpdateTelegramStatusLabel(
+                    token.Length > 0 ? Color.Green : Color.Gray,
+                    token.Length > 0 ? "Token kaydedildi — kutucuğu işaretleyerek etkinleştirin"
+                                     : "Token temizlendi — Telegram kapalı");
+
+                MessageBox.Show(
+                    token.Length > 0
+                        ? "Token kaydedildi (dosya: telegram.ini).\nŞimdi 'Telegram Bot Aktif Et' kutusunu işaretleyin."
+                        : "Token temizlendi. Telegram özelliği devre dışı.",
+                    "Kaydedildi", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            else
+            {
+                MessageBox.Show("Token kaydedilemedi. Ayrıntı için Logs klasöründeki günlük dosyasına bakınız.",
+                    "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
         private void buttonTelegramTest_Click(object sender, EventArgs e)
         {
-            if (ThreadGlobals.isTelegramBotActive)
+            // Bot aktif değilse veya istemci hiç oluşturulmamışsa test yapılamaz.
+            if (!ThreadGlobals.isTelegramBotActive || telegramBot == null)
             {
-                if(!TelegramBot.TELEGRAM_BOT_IS_READY)
+                MessageBox.Show("Önce 'Telegram Bot Aktif Et' kutucuğunu işaretlemelisin.",
+                    "Uyarı", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (!TelegramBot.TELEGRAM_BOT_IS_READY)
+            {
+                // Henüz onaylanmamış bir bağlantı isteği var mı?
+                if (TelegramBot.TELEGRAM_SEND_MESSAGE != null && TelegramBot.TELEGRAM_SEND_MESSAGE.Chat != null)
                 {
-                    if (TelegramBot.TELEGRAM_SEND_MESSAGE != null)
+                    TelegramBot.TELEGRAM_DIALOG_PANEL_ACTIVE = true;
+
+                    string requestOwner = TelegramBot.TELEGRAM_SEND_MESSAGE.Chat.FirstName ?? "Bilinmeyen";
+
+                    DialogResult result = MessageBox.Show(
+                        requestOwner + " adlı kullanıcı size mi ait?",
+                        "Onay", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                    TelegramBot.TELEGRAM_DIALOG_PANEL_ACTIVE = false;
+
+                    if (result == DialogResult.Yes)
                     {
-                        TelegramBot.TELEGRAM_DIALOG_PANEL_ACTIVE = true;
-
-                        DialogResult result = MessageBox.Show(
-                            TelegramBot.TELEGRAM_SEND_MESSAGE.Chat.FirstName + " adlı kullanıcı size mi ait?",
-                            "Onay", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-                        if (result == DialogResult.Yes)
-                        {
-                            TelegramBot.TELEGRAM_DIALOG_PANEL_ACTIVE = false;
-                            labelTelegramStatus.ForeColor = Color.Green;
-                            labelTelegramStatus.Text = "Bağlantı kuruldu. Kullanıma hazır";
-                            TelegramBot.SendMessageTelegram("Bağlantı hazır");
-                            TelegramBot.TELEGRAM_BOT_IS_READY = true;
-                            buttonTelegramTest.Text = "Sıfırla";
-
-                        }
-                        else
-                        {
-                            TelegramBot.TELEGRAM_DIALOG_PANEL_ACTIVE = false;
-                            labelTelegramStatus.ForeColor = Color.Red;
-                            labelTelegramStatus.Text = "Bağlantı kurmak için tekrar mesaj gönderin";                          
-                        }
+                        labelTelegramStatus.ForeColor = Color.Green;
+                        labelTelegramStatus.Text = "Bağlantı kuruldu. Kullanıma hazır";
+                        TelegramBot.SendMessageTelegram("Bağlantı hazır");
+                        TelegramBot.TELEGRAM_BOT_IS_READY = true;
+                        buttonTelegramTest.Text = "Sıfırla";
                     }
                     else
                     {
-                        MessageBox.Show("Telegram kanalına mesaj gönderip veya 'Start'" +
-                            "butonuna bastıktan sonra tekrar 'Test' butonuna basınız.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-
+                        labelTelegramStatus.ForeColor = Color.Red;
+                        labelTelegramStatus.Text = "Bağlantı kurmak için tekrar mesaj gönderin";
                     }
                 }
                 else
                 {
-                    DialogResult result = MessageBox.Show(
-                            "Zaten " + TelegramBot.TELEGRAM_SEND_MESSAGE.Chat.FirstName + " ile bağlantı kuruldu" +
-                            " Yeni bir kişi ile mi bağlantı kurmak istiyorsun?",
-                            "Onay", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-                    if(result == DialogResult.Yes)
-                    {
-                        TelegramBot.SendMessageTelegram("Bağlantınız sıfırlandı.Aktif etmek için yeniden " +
-                            "mesaj gönderip 'Test' butonuna basınız ");
-
-                        TelegramBot.TELEGRAM_BOT_IS_READY = false;
-                        TelegramBot.TELEGRAM_SEND_MESSAGE = null;
-
-                        labelTelegramStatus.ForeColor = Color.Magenta;
-                        labelTelegramStatus.Text = "Bağlantınız sıfırlandı";
-                        buttonTelegramTest.Text = "Test";
-
-                    }
-                   
+                    MessageBox.Show(
+                        "Telegram botuna mesaj gönderip (veya 'Start' düğmesine basıp) " +
+                        "ardından tekrar 'Test Et' düğmesine basınız.",
+                        "Uyarı", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 }
-               
             }
             else
             {
-                MessageBox.Show("Telegram Aktif Et Seçeneğini İşaretlemelisin.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                // Zaten kurulmuş bir bağlantı var: kullanıcı yeni biriyle mi bağlanmak istiyor?
+                string currentOwner = TelegramBot.TELEGRAM_SEND_MESSAGE != null &&
+                                      TelegramBot.TELEGRAM_SEND_MESSAGE.Chat != null
+                    ? (TelegramBot.TELEGRAM_SEND_MESSAGE.Chat.FirstName ?? "mevcut kullanıcı")
+                    : "mevcut kullanıcı";
 
+                DialogResult result = MessageBox.Show(
+                    "Zaten " + currentOwner + " ile bağlantı kuruldu." +
+                    " Yeni bir kişi ile mi bağlantı kurmak istiyorsun?",
+                    "Onay", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+
+                if (result == DialogResult.Yes)
+                {
+                    TelegramBot.SendMessageTelegram("Bağlantınız sıfırlandı. Aktif etmek için " +
+                        "yeniden mesaj gönderip 'Test Et' düğmesine basınız.");
+
+                    TelegramBot.TELEGRAM_BOT_IS_READY = false;
+                    TelegramBot.TELEGRAM_SEND_MESSAGE = null;
+
+                    labelTelegramStatus.ForeColor = Color.Magenta;
+                    labelTelegramStatus.Text = "Bağlantınız sıfırlandı";
+                    buttonTelegramTest.Text = "Test Et";
+                }
             }
-        }
-
-        private void label21_Click(object sender, EventArgs e)
-        {
-
         }
 
         private void TextBoxes_Skills_Leave(object sender, EventArgs e)
@@ -857,11 +1069,11 @@ namespace MusicPlayerApp
             {
                 if (skillTime >= 0)
                 {
-                    ThreadGlobals.SKILL_TIME_FOR_KEYS[indexForSkillTime] = skillTime;
+                    ThreadGlobals.SetSkillTime(indexForSkillTime, skillTime);
                 }
                 else
                 {
-                    MessageBox.Show("Lütfen " + textBox.Name + " zamanı 0 dan büyük bir değer giriniz.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Lütfen " + textBox.Name + " zamanı 0 dan büyük bir değer giriniz.", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
 
                 
@@ -869,20 +1081,10 @@ namespace MusicPlayerApp
             }
             else
             {
-                MessageBox.Show("Lütfen " + textBox.Name + " kısmındaki kutucuğa süre olarak sadece sayı giriniz.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Lütfen " + textBox.Name + " kısmındaki kutucuğa süre olarak sadece sayı giriniz.", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
         }
-        private void groupBox1_Enter(object sender, EventArgs e)
-        {
-
-        }
-
-        private void label27_Click(object sender, EventArgs e)
-        {
-
-        }
-
         private void checkBoxFishingMiniBreak_CheckedChanged(object sender, EventArgs e)
         {
             if(checkBoxFishingMiniBreak.Checked)
@@ -936,11 +1138,6 @@ namespace MusicPlayerApp
         {
             toolTip.SetToolTip(checkBoxAdaptableFish, "Eğer haritada veya yakınınızda oyuncu var ise yavaş balık tutar");
             toolTip.SetToolTip(checkBoxPCSlow, "Eğer Bilgisayarın çok yavaş ise balık tutmak yada enerji parçası için bu seçeneği tıkla");
-        }
-
-        private void checkBoxEnableTime_CheckedChanged_1(object sender, EventArgs e)
-        {
-
         }
 
         private void checkBoxAdaptable_CheckedChanged(object sender, EventArgs e)

@@ -33,7 +33,7 @@ namespace Metin2AutoFishCSharp
                 if( detectingWords != null && detectingWords.Length < 0 )
                 {
                     MessageBox.Show("Lütfen geçerli türde verileri girin. Örnek (bot,hile )",
-                   "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                   "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
 
             }
@@ -41,7 +41,7 @@ namespace Metin2AutoFishCSharp
             {
                 MessageBox.Show("Lütfen tespit edilecek kelimeleri boşluk" +
                     "bırakarak yada virgül işareti ile giriniz (Örnek = bot hile  yada bot,hile",
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -54,7 +54,7 @@ namespace Metin2AutoFishCSharp
                 if ( answerWords != null && answerWords.Length < 0)
                 {
                     MessageBox.Show("Lütfen geçerli türde verileri girin. Örnek (ben hile değilim,bot değilim)",
-                   "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                   "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
 
             }
@@ -62,7 +62,7 @@ namespace Metin2AutoFishCSharp
             {
                 MessageBox.Show("Lütfen tespit edilen kelimeleri cevap vermek için ya virgül" +
                     "yada nokta işareti ile ayrınız (Örnek = ben bot değilim,ben hile kullanmıyorum",
-                    "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 
@@ -79,13 +79,13 @@ namespace Metin2AutoFishCSharp
                 {
                     MessageBox.Show("Lütfen tespit edilen kelimeye göre cevap verilecek cümleleri yada kelimeleri " +
                         "giriniz.",
-                   "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                   "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
             else
             {
                 MessageBox.Show("Lütfen tespit edilecek kelimeler kısmının doldurunuz.",
-               "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+               "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
 

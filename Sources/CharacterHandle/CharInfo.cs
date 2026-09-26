@@ -19,6 +19,17 @@ namespace MusicPlayerApp.Sources.CharacterHandle
         public static Rectangle CharRectBounds = Rectangle.Empty;
         public static int CharLevel = 0;
 
+        /// <summary>
+        /// Karakter bilgisi onbelligini sifirlar. Bot durduruldugunda cagrilir;
+        /// boylece bir sonraki calistirmada karakter adi/level yeniden okunur.
+        /// </summary>
+        public static void ResetCharCache()
+        {
+            CharNameString = string.Empty;
+            CharRectBounds = Rectangle.Empty;
+            CharLevel = 0;
+        }
+
         private ScreenShotWinAPI screenshot;
         private ImageObjects imagesObject;
         private GameObjectCoordinates coor;

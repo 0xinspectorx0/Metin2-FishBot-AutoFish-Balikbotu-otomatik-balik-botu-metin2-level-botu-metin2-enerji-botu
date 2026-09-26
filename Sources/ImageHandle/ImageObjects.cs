@@ -1,15 +1,48 @@
-﻿using System;
+﻿using MusicPlayerApp.Debugs;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Threading;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace MusicPlayerApp.Sources.ImageHandle
 {
+    /// <summary>
+    /// Butun referans PNG'leri acilista bir kez okuyup ARGB <c>int[]</c> olarak bellekte tutar.
+    /// </summary>
+    /// <remarks>
+    /// Bu sinif TEK ORNEK (singleton) olarak kullanilir. Sebep: her <c>new ImageObjects()</c>
+    /// ~70 PNG'yi yeniden okuyor ve her PNG icin bir <see cref="Bitmap"/> yaratiliyordu;
+    /// bu bitmap'lar dispose edilmedigi icin GDI nesne sizintisi olusuyordu.
+    /// </remarks>
     internal class ImageObjects : ImageProcess
     {
-       
+        private static ImageObjects instance;
+        private static readonly object instanceLock = new object();
+
+        /// <summary>
+        /// Uygulama genelindeki tek <see cref="ImageObjects"/> ornegi (tembel olusturulur).
+        /// </summary>
+        public static ImageObjects Instance
+        {
+            get
+            {
+                if (instance == null)
+                {
+                    lock (instanceLock)
+                    {
+                        if (instance == null)
+                        {
+                            instance = new ImageObjects();
+                        }
+                    }
+                }
+                return instance;
+            }
+        }
+
         public int[] arrayMetin2Icon { get; private set; }
         public int[] arrayInventoryTitle { get; private set; }
         public int[] arrayEntryScreen { get; private set; }
@@ -90,7 +123,7 @@ namespace MusicPlayerApp.Sources.ImageHandle
         //public int[] arrayEmptySlotIcon { get; private set; }
 
 
-        public ImageObjects() : base()
+        private ImageObjects() : base()
         {
             arrayMetin2Icon = convertBitMapToIntArray(ImagePathNames.metin2IconFileName, PathWayStruct.PATH_IMAGE);
             arrayInventoryTitle = convertBitMapToIntArray(ImagePathNames.inventoryFileName, PathWayStruct.PATH_IMAGE);
@@ -185,9 +218,32 @@ namespace MusicPlayerApp.Sources.ImageHandle
                 convertBitMapToIntArray(ImagePathNames.statusImproveWhiteFileName, PathWayStruct.PATH_IMAGE));
              }
 
-        private int[] convertBitMapToIntArray(string fileName,PathWayStruct pathWay)
+        /// <summary>
+        /// Verilen PNG'yi okur ve ARGB piksel dizisine cevirir. Ara bitmap dispose edilir.
+        /// </summary>
+        private int[] convertBitMapToIntArray(string fileName, PathWayStruct pathWay)
         {
-            return screenshot.ConvertBitmapToArray(FileHandler.ReadPngFileGetBitmap(fileName,pathWay));
+            try
+            {
+                using (Bitmap referenceImage = FileHandler.ReadPngFileGetBitmap(fileName, pathWay))
+                {
+                    int[] result = screenshot.ConvertBitmapToArray(referenceImage);
+                    if (result == null)
+                    {
+                        throw new InvalidOperationException(
+                            "Referans goruntu piksel dizisine cevrilemedi: " + fileName);
+                    }
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Referans goruntulerden biri eksikse bot HIC calismaz; bu yuzden hata
+                // kullaniciya anlasilir sekilde iletilir.
+                throw new InvalidOperationException(
+                    "'" + fileName + "' referans goruntusu yuklenemedi. Programin Images, Fishes ve " +
+                    "ChatResources klasorleri exe'nin yaninda olmak zorundadir. Ayrinti: " + ex.Message, ex);
+            }
         }
     }
 

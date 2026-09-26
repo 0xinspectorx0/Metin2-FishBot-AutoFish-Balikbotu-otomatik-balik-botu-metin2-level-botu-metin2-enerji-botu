@@ -35,22 +35,31 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
         {
             Rectangle rectMiniMap = coor.RectMiniMapArea();
             int[] miniMapImage = screenShot.ImageArraySpecifiedArea(rectMiniMap);
+
+            // HATA DUZELTILDI: piksel indeksi '(y * Height) + x' ile hesaplanyordu.
+            // Mini harita 117x117 kare oldugu icin tesadufen dogru calisiyordu;
+            // alan degistirildigi an tespit tamamen bozulurdu.
+            if (miniMapImage == null || miniMapImage.Length < rectMiniMap.Width * rectMiniMap.Height)
+            {
+                FileLogger.Warning("DetectAnotherPlayersMiniMap: mini harita goruntusu alinamadi");
+                return false;
+            }
             for (int y = 0; y < rectMiniMap.Height; y++)
             {
                 for (int x = 0; x < rectMiniMap.Width; x++)
                 {
                     if (imageobject.CompareTwoRgbIntAdvanced(ColorGame.MINIMAP_PLAYER_DARKYELLOW,
-                        miniMapImage[(y * rectMiniMap.Height) + x]) ||
+                        miniMapImage[(y * rectMiniMap.Width) + x]) ||
                         imageobject.CompareTwoRgbIntAdvanced(ColorGame.MINIMAP_PLAYER_OPENYELLOW,
-                         miniMapImage[(y * rectMiniMap.Height) + x]))
+                         miniMapImage[(y * rectMiniMap.Width) + x]))
                     {
                         ThreadGlobals.isAnotherPlayerDetected = true;
                         return true;
                     }
                     if (imageobject.CompareTwoRgbIntAdvanced(ColorGame.MINIMAP_PLAYER_DARKPINK,
-                        miniMapImage[(y * rectMiniMap.Height) + x]) ||
+                        miniMapImage[(y * rectMiniMap.Width) + x]) ||
                         imageobject.CompareTwoRgbIntAdvanced(ColorGame.MINIMAP_PLAYER_OPENPINK,
-                         miniMapImage[(y * rectMiniMap.Height) + x]))
+                         miniMapImage[(y * rectMiniMap.Width) + x]))
                     {
                         ThreadGlobals.isAnotherPlayerDetected = true;
                         ThreadGlobals.isEnemyDetected = true;

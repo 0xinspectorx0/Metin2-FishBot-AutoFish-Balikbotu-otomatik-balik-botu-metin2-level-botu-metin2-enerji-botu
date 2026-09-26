@@ -85,8 +85,7 @@ namespace Metin2AutoFishCSharp.Sources.ChatHandler
             DebugPfCnsl.println("CloseWhisperPanel running");
             TimerGame timeClosePanel = new TimerGame();
 
-            FileHandler.SaveImageAsPng(screenShot.CaptureSpecifiedScreen(coor.RectMetin2GameScreen()),
-               "whisper" + whisperImageCounter++ + ".png", PathWayStruct.PATH_SCREENSHOTS);
+            FileHandler.CaptureAndSavePng(screenShot, coor.RectMetin2GameScreen(), "whisper" + whisperImageCounter++ + ".png", PathWayStruct.PATH_SCREENSHOTS);
 
             if (rectDetectedWhisperPanel != Rectangle.Empty)
             {

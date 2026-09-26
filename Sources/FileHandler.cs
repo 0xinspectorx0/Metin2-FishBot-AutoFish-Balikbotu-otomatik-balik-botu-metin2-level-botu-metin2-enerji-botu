@@ -1,17 +1,15 @@
 ﻿using MusicPlayerApp.Debugs;
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
-using static MusicPlayerApp.Sources.ScreenShotWinAPI;
 
 namespace MusicPlayerApp.Sources
 {
+    /// <summary>
+    /// Programin kullandigi klasor yapisini (Images, Fishes, ChatResources ...)
+    /// ve dosya okuma/yazma islemlerini yonetir.
+    /// </summary>
     public enum PathWayStruct
     {
         PATH_STANDART,
@@ -22,7 +20,6 @@ namespace MusicPlayerApp.Sources
         PATH_TESTIMAGES,
         PATH_CHAT_Q_A,
         PATH_SCREENSHOTS
-
     }
 
     public enum ReturOrFind
@@ -30,178 +27,276 @@ namespace MusicPlayerApp.Sources
         RETURN_PATH,
         FIND_PATH,
     }
+
     internal class FileHandler
     {
-        
-        
-
-        public static void SaveImageAsPng(Bitmap bitmap, string fileName, PathWayStruct pathWay)
+        /// <summary>
+        /// Program kurulumunda (zip'ten cikarildiginda) exe'nin bulundugu klasor.
+        /// Eski surum bu yolu "exe yolunun son iki segmentini atarak" hesapliyordu
+        /// (<c>bin\Debug\..\..\</c>); exe tasinirsa veya ClickOnce ile kurulursa
+        /// butun kaynaklar kayboluyordu. Artik dogrudan exe'nin kendi klasoru
+        /// kullanilir ve csproj <c>CopyToOutputDirectory</c> ile kaynaklari oraya kopyalar.
+        /// </summary>
+        public static string BaseDirectory
         {
-            if (bitmap == null || bitmap.Width > 0)
+            get
             {
-                string path = ReturnOrFindPathWay(fileName, pathWay,ReturOrFind.RETURN_PATH);
+                try
+                {
+                    string location = Assembly.GetEntryAssembly() != null
+                        ? Assembly.GetEntryAssembly().Location
+                        : Assembly.GetExecutingAssembly().Location;
 
-                bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
-            }
-            else
-            {
-                DebugPfCnsl.println(" bitmap null or widht is less than zero in saveImage FUNCT !!!");
+                    if (!string.IsNullOrEmpty(location))
+                    {
+                        return Path.GetDirectoryName(location);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    FileLogger.Error("BaseDirectory (Assembly.Location) okunamadi", ex);
+                }
+
+                // Yedek: AppDomain.BaseDirectory her zaman doludur.
+                return AppDomain.CurrentDomain.BaseDirectory;
             }
         }
 
-        public static string PathWantedWayFromBase(string fileName,string []folderNames)
+        /// <summary>
+        /// Bitmap'i PNG olarak kaydeder. Bitmap null ise veya bos ise HICBIR sey yapmaz.
+        /// </summary>
+        /// <remarks>
+        /// Eski kodda kosul <c>if (bitmap == null || bitmap.Width > 0)</c> seklindeydi;
+        /// yani bitmap null oldugunda iceri girip <c>bitmap.Save(...)</c> cagiriyor ve
+        /// <see cref="NullReferenceException"/> uretiyordu. Duzeltildi.
+        /// </remarks>
+        public static void SaveImageAsPng(Bitmap bitmap, string fileName, PathWayStruct pathWay)
         {
-            //string currentDirect = Environment.CurrentDirectory;
-            string currentDirect = Path.GetDirectoryName(Assembly.GetEntryAssembly().Location);
-            string[] stringArray = currentDirect.Split('\\');
-
-            string temp = "";
-            for (int i = 0; i < stringArray.Length - 2; i++)
+            if (bitmap == null || bitmap.Width <= 0 || bitmap.Height <= 0)
             {
-                if (i == (stringArray.Length -3))
-                {
-                    temp += stringArray[i];
-                    break;
-                }
-                temp += stringArray[i] + "\\";
-
+                FileLogger.Warning("SaveImageAsPng: kaydedilecek bitmap null veya bos (" + fileName + ")");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(fileName))
+            {
+                FileLogger.Warning("SaveImageAsPng: dosya adi bos, kayit atlandi");
+                return;
             }
 
             try
             {
-
-                for (int k=0; k < folderNames.Length; k++) 
-                 {
-                     temp = Path.Combine(temp, folderNames[k]);
-                 }
-
-                temp = Path.Combine(temp, fileName);
-
+                string path = ReturnOrFindPathWay(fileName, pathWay, ReturOrFind.RETURN_PATH);
+                string directory = Path.GetDirectoryName(path);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+                bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+                FileLogger.Debug("Goruntu kaydedildi: " + path);
             }
-            catch (ArgumentNullException ex1)
+            catch (Exception ex)
             {
-                DebugPfCnsl.println(ex1.Message);
+                FileLogger.Error("SaveImageAsPng basarisiz (" + fileName + ")", ex);
             }
-            catch (ArgumentException ex2) { DebugPfCnsl.println(ex2.Message); }
-
-           
-
-            //DebugPfCnsl.println(temp);
-            return temp;
-            
         }
 
-        public static string ReturnOrFindPathWay(string fileName,PathWayStruct folderWay, ReturOrFind state) 
+        /// <summary>
+        /// Belirtilen ekran bolgesini yakalar, PNG olarak kaydeder ve aradaki bitmap'i
+        /// hemen serbest birakir.
+        /// </summary>
+        /// <remarks>
+        /// Eski kod <c>SaveImageAsPng(screenshot.CaptureSpecifiedScreen(rect), ...)</c>
+        /// seklinde cagrilip ara bitmap'i hic dispose etmiyordu; her kayitta bir GDI
+        /// nesnesi siziyordu.
+        /// </remarks>
+        public static void CaptureAndSavePng(ScreenShotWinAPI screenshot, Rectangle area, string fileName, PathWayStruct pathWay)
         {
-            string path = "";
-            //string currentDirect = Environment.CurrentDirectory;
-            //string[] stringArray = currentDirect.Split('\\');
+            if (screenshot == null)
+            {
+                FileLogger.Warning("CaptureAndSavePng: screenshot nesnesi null");
+                return;
+            }
+            using (Bitmap captured = screenshot.CaptureSpecifiedScreen(area))
+            {
+                SaveImageAsPng(captured, fileName, pathWay);
+            }
+        }
 
-            if (folderWay == PathWayStruct.PATH_STANDART)
-            {
-                path = fileName;
-            }
-            else if (folderWay == PathWayStruct.PATH_DESTKOP)
-            {
-                string desktopPath = Environment.GetFolderPath(Environment.SpecialFolder.Desktop);
-                path = Path.Combine(desktopPath, fileName);
+        /// <summary>
+        /// Exe klasorunun altindaki klasorleri birlestirerek tam yol uretir.
+        /// </summary>
+        /// <param name="fileName">Dosya adi</param>
+        /// <param name="folderNames">Exe klasorune gore alt klasorler</param>
+        public static string PathWantedWayFromBase(string fileName, string[] folderNames)
+        {
+            string path = BaseDirectory;
 
-            }
-            else if(folderWay == PathWayStruct.PATH_IMAGE)
+            if (folderNames != null)
             {
-                path = PathWantedWayFromBase(fileName, new string[] { "Images" });
+                for (int k = 0; k < folderNames.Length; k++)
+                {
+                    if (string.IsNullOrEmpty(folderNames[k]))
+                    {
+                        continue;
+                    }
+                    path = Path.Combine(path, folderNames[k]);
+                }
+            }
 
-            }
-            else if(folderWay == PathWayStruct.PATH_CHAT_ALPHABETS)
+            if (!string.IsNullOrEmpty(fileName))
             {
-                path = PathWantedWayFromBase(fileName, new string[] { "ChatResources", "GameAlphabets" });
+                path = Path.Combine(path, fileName);
             }
-            else if(folderWay == PathWayStruct.PATH_TESTIMAGES)
+
+            return path;
+        }
+
+        /// <summary>
+        /// Verilen <see cref="PathWayStruct"/> degerine karsilik gelen tam yolu doner.
+        /// <see cref="ReturOrFind.FIND_PATH"/> secilirse dosyanin varligi da dogrulanir.
+        /// </summary>
+        public static string ReturnOrFindPathWay(string fileName, PathWayStruct folderWay, ReturOrFind state)
+        {
+            string path;
+
+            switch (folderWay)
             {
-                path = PathWantedWayFromBase(fileName, new string[] { "TestImages" });
+                case PathWayStruct.PATH_STANDART:
+                    path = fileName;
+                    break;
+
+                case PathWayStruct.PATH_DESTKOP:
+                    path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), fileName);
+                    break;
+
+                case PathWayStruct.PATH_IMAGE:
+                    path = PathWantedWayFromBase(fileName, new string[] { "Images" });
+                    break;
+
+                case PathWayStruct.PATH_CHAT_ALPHABETS:
+                    path = PathWantedWayFromBase(fileName, new string[] { "ChatResources", "GameAlphabets" });
+                    break;
+
+                case PathWayStruct.PATH_TESTIMAGES:
+                    path = PathWantedWayFromBase(fileName, new string[] { "TestImages" });
+                    break;
+
+                case PathWayStruct.PATH_CHAT_Q_A:
+                    path = PathWantedWayFromBase(fileName, new string[] { "ChatResources", "ChatQuestionAnswer" });
+                    break;
+
+                case PathWayStruct.PATH_SCREENSHOTS:
+                    path = PathWantedWayFromBase(fileName, new string[] { "ScreenShot" });
+                    break;
+
+                case PathWayStruct.PATH_FISHES:
+                default:
+                    path = PathWantedWayFromBase(fileName, new string[] { "Fishes" });
+                    break;
             }
-            else if(folderWay == PathWayStruct.PATH_CHAT_Q_A)
-            {
-                path = PathWantedWayFromBase(fileName, new string[] { "ChatResources", "ChatQuestionAnswer" });
-            }
-            else if(folderWay == PathWayStruct.PATH_SCREENSHOTS)
-            {
-                path = PathWantedWayFromBase(fileName, new string[] { "ScreenShot" });
-            }
-            else
-            {
-                path = PathWantedWayFromBase(fileName, new string[] { "Fishes" });
-            }
-                if(state == ReturOrFind.FIND_PATH)
+
+            if (state == ReturOrFind.FIND_PATH)
             {
                 if (File.Exists(path))
                 {
                     return path;
                 }
-                else
-                { throw new FileNotFoundException("file name couldn't be found"); }
 
-            }
-            else { return path; }
-
-        }
-        /// <summary>
-        /// Find wanted folder name from base that project start from exe build place
-        /// </summary>
-        /// <param name="folderName"> wanted folder name </param>
-        /// <returns>folder name that we wanted if it could't
-        /// find, returns NULL.</returns>
-        public static string FindFolderNameFromBase(String folderName)
-        {
-            string currentDirect = Environment.CurrentDirectory;
-            string[] stringArray = currentDirect.Split('\\');
-
-            string parsedWay = "";
-            for (int i = 0; i < stringArray.Length - 2; i++)
-            {
-                if (i == (stringArray.Length - 3))
+                // Gelistrime ortaminda (bin\Debug yerine proje kokunden calistirma) icin
+                // bir ust-ust klasore de bakilir; yine bulunamazsa anlaşılır bir hata verilir.
+                string legacyPath = Path.GetFullPath(Path.Combine(BaseDirectory, "..", "..", path));
+                if (File.Exists(legacyPath))
                 {
-                    parsedWay += stringArray[i];
-                    break;
+                    return legacyPath;
                 }
-                parsedWay += stringArray[i] + "\\";
 
+                throw new FileNotFoundException(
+                    "Program kaynak dosyasi bulunamadi: '" + Path.GetFileName(path) + "'.\n" +
+                    "Aranan yer: " + path + "\n" +
+                    "Cozum: Proje klasorundeki Images, Fishes ve ChatResources klasorlerinin " +
+                    "exe'nin yaninda oldugundan emin olun (Visual Studio'da 'Derle' demek " +
+                    "bu klasorleri otomatik kopyalar).",
+                    path);
             }
-           // DebugPfCnsl.println("parsedWay = " + parsedWay);
 
-            string[] foldarPaths = Directory.GetDirectories(parsedWay,folderName,SearchOption.AllDirectories);
-
-            if(foldarPaths.Length > 0)
-            {
-                foreach (string foldarPath in foldarPaths)
-                {
-                   // Console.WriteLine("Bulunan klasor: " + foldarPath);
-                    if (foldarPath.Contains(folderName))
-                    {
-                        return foldarPath;
-                    }
-            }
-            }else
-            {
-                throw new FileNotFoundException("Wanted folder is not found !!");
-            }
-           
-          return null;
+            return path;
         }
 
-        public static Bitmap ReadPngFileGetBitmap(String fileName,PathWayStruct pathWay)
+        /// <summary>
+        /// Exe klasorunun altinda verilen isimde klasor arar; yoksa OLUSTURUR.
+        /// </summary>
+        /// <remarks>
+        /// Eski surum <c>Environment.CurrentDirectory</c>'yi bolup son iki segmenti
+        /// atiyor ve ardindan <c>SearchOption.AllDirectories</c> ile TUM alt agaci
+        /// tarayarak klasor ariyordu. Calisma dizini degistiginde (kisayol, "farkli
+        /// calistir", gorev zamanlayici) hem yavasliyor hem de
+        /// <see cref="FileNotFoundException"/> ile tip baslatma hatasi veriyordu.
+        /// </remarks>
+        /// <param name="folderName">Aranan/olusturulacak klasor adi</param>
+        /// <returns>Klasorun tam yolu</returns>
+        public static string FindFolderNameFromBase(string folderName)
         {
-            string filePath = ReturnOrFindPathWay(fileName, pathWay, ReturOrFind.FIND_PATH);
-            if (!filePath.Contains("png")) throw new Exception("This file Path is not a png format ");
+            if (string.IsNullOrWhiteSpace(folderName))
+            {
+                throw new ArgumentException("folderName bos olamaz", "folderName");
+            }
+
             try
             {
-                Bitmap bitmap = (Bitmap)Image.FromFile(filePath);
-                return bitmap;
+                string path = Path.Combine(BaseDirectory, folderName);
+                if (!Directory.Exists(path))
+                {
+                    Directory.CreateDirectory(path);
+                    FileLogger.Info("Klasor olusturuldu: " + path);
+                }
+                return path;
             }
-            catch (Exception ex) 
-            { throw new Exception(ex.Message); }
-          
-            
+            catch (Exception ex)
+            {
+                FileLogger.Error("FindFolderNameFromBase basarisiz (" + folderName + ")", ex);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// PNG dosyasini okuyup <see cref="Bitmap"/> doner.
+        /// </summary>
+        /// <remarks>
+        /// Eski surum <c>Image.FromFile</c> kullaniyordu; bu metot dosyayi bitmap
+        /// dispose edilene kadar KILITLI tutar. Artik dosya baytlari bellekten
+        /// okunuyor, boylece PNG'ler kilitlenmiyor ve hata mesaji yolu da iceriyor.
+        /// Cagiran taraf donen bitmap'i dispose etmelidir.
+        /// </remarks>
+        public static Bitmap ReadPngFileGetBitmap(string fileName, PathWayStruct pathWay)
+        {
+            string filePath = ReturnOrFindPathWay(fileName, pathWay, ReturOrFind.FIND_PATH);
+
+            if (!filePath.EndsWith(".png", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("Dosya PNG formatinda degil: " + filePath, "fileName");
+            }
+
+            try
+            {
+                byte[] bytes = File.ReadAllBytes(filePath);
+                using (MemoryStream stream = new MemoryStream(bytes))
+                {
+                    // FromStream akis kapatildiktan sonra da calisabilir; yine de
+                    // Bitmap'i kopyalayarak akistan tamamen bagimsiz hale getiriyoruz.
+                    using (Bitmap temporary = (Bitmap)Image.FromStream(stream))
+                    {
+                        return new Bitmap(temporary);
+                    }
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                throw new IOException("PNG dosyasi okunamadi: " + filePath + " (" + ex.Message + ")", ex);
+            }
         }
     }
 }

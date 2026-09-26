@@ -434,22 +434,55 @@ namespace Metin2AutoFishCSharp.Sources.ChatHandler
 
         }
        
+        /// <summary>
+        /// ChatResources\GameAlphabets altindaki harf sablonlarini okur ve her birini
+        /// beyaz piksel maskesine (bool[]) cevirir.
+        /// </summary>
+        /// <remarks>
+        /// Eski surum <c>FindFolderNameFromBase("GameAlphabets")</c> ile tum disk agacini
+        /// taratip <c>ReadPngFileGetBitmap</c>'a TAM YOL gonderiyordu; ayrica okunan her
+        /// bitmap dispose edilmedigi icin ~95 dosya x her ornek icin GDI sizintisi vardi.
+        /// </remarks>
         private bool[][] convertAlphabetsBool()
         {
-            string[] fileNames = Directory.GetFiles(FileHandler.FindFolderNameFromBase("GameAlphabets"));
-
-           // DebugPfCnsl.PrintArray(fileNames);
-
+            string[] fileNames = LoadAlphabetFileNames();
             bool[][] alphabetArrays = new bool[fileNames.Length][];
-            
-            for(int i = 0; i < fileNames.Length; i++)
+
+            for (int i = 0; i < fileNames.Length; i++)
             {
-                alphabetArrays[i] = imageproc.RecordWantedColorAsBool(ColorGame.CHAT_WHITE_COLOR,
-                    screenshot.ConvertBitmapToArray(FileHandler.ReadPngFileGetBitmap(fileNames[i],
-                    PathWayStruct.PATH_CHAT_ALPHABETS)));
+                using (Bitmap alphabetImage = FileHandler.ReadPngFileGetBitmap(
+                    Path.GetFileName(fileNames[i]), PathWayStruct.PATH_CHAT_ALPHABETS))
+                {
+                    alphabetArrays[i] = imageproc.RecordWantedColorAsBool(ColorGame.CHAT_WHITE_COLOR,
+                        screenshot.ConvertBitmapToArray(alphabetImage));
+                }
             }
 
             return alphabetArrays;
+        }
+
+        /// <summary>
+        /// Harf sablonu dosyalarinin tam yollarini doner. Klasor bos ise hata loglanir.
+        /// </summary>
+        internal static string[] LoadAlphabetFileNames()
+        {
+            string folder = FileHandler.PathWantedWayFromBase(string.Empty,
+                new string[] { "ChatResources", "GameAlphabets" });
+
+            if (!Directory.Exists(folder))
+            {
+                throw new DirectoryNotFoundException(
+                    "Harf sablonlarinin bulundugu klasor yok: " + folder +
+                    " (ChatResources\\GameAlphabets klasoru exe'nin yaninda olmali)");
+            }
+
+            string[] fileNames = Directory.GetFiles(folder, "*.png");
+            if (fileNames.Length == 0)
+            {
+                throw new FileNotFoundException(
+                    "Harf sablonu bulunamadi (bos klasor): " + folder);
+            }
+            return fileNames;
         }
 
         public GameAlphabetRectangle GetGameAlphabetRectangle()

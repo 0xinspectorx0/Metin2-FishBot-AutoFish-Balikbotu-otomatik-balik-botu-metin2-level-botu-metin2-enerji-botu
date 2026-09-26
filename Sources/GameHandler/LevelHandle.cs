@@ -27,6 +27,9 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
         private GameInputHandler inputs;
         private SkillsHandler skills;
 
+        /// <summary>Pot basma donguleri icin azami toplam deneme sayisi.</summary>
+        private const int MAX_POT_FILL_ATTEMPTS = 40;
+
         private TimerGame timerLevelDetection;
 
        private bool Is_Level_Detected;
@@ -85,21 +88,27 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
         /// checks the hp and sp values 
         /// </summary>
         /// <returns> int array which first index refers to hp and second is sp fullness ratio </returns>
+        /// <summary>
+        /// HP ve SP barlarının doluluk yüzdesini ekran görüntüsünden okur.
+        /// </summary>
+        /// <returns>
+        /// [0] = HP yüzdesi, [1] = SP yüzdesi. Bar okunamazsa ilgili değer <c>-1</c> olur;
+        /// böylece okuma hatası "bar boş" sanılıp gereksiz pot basılmaz.
+        /// </returns>
         private int[] ControlHpAndManaBar()
         {
-            int[] resultArray = new int[2];
-            resultArray[0] = 0;
-            resultArray[1] = 0;
+            // -1 = okunamadı (pot basma koşulu hiçbir zaman sağlamaz)
+            int[] resultArray = new int[] { -1, -1 };
 
-            int[] targetHpEmptyBar = screenShot.ImageArraySpecifiedArea(coor.RectHpTitleBar());
-            int detectedHpBarIndex = 0;
+            int[] targetHpEmptyBar = screenShot.CaptureAreaAsArray(coor.RectHpTitleBar());
+            int[] targetSpEmptyBar = screenShot.CaptureAreaAsArray(coor.RectManaTitleBar());
 
-            int[] targetSpEmptyBar = screenShot.ImageArraySpecifiedArea(coor.RectManaTitleBar());
-            int detectedSpBarIndex = 0;
-
-            if (targetHpEmptyBar.Length == imagesObject.arrayEmptyBar.Length)
+            if (targetHpEmptyBar != null && imagesObject.arrayEmptyBar != null &&
+                targetHpEmptyBar.Length == imagesObject.arrayEmptyBar.Length &&
+                targetHpEmptyBar.Length > 0)
             {
-                for (int titleX = coor.RectHpTitleBar().Width -1 ; titleX >= 0; titleX--)
+                int detectedHpBarIndex = 0;
+                for (int titleX = coor.RectHpTitleBar().Width - 1; titleX >= 0; titleX--)
                 {
                     if (!imagesObject.CompareTwoRgbIntAdvanced(imagesObject.arrayEmptyBar[titleX],
                         targetHpEmptyBar[titleX]))
@@ -108,17 +117,21 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
                         break;
                     }
                 }
-               // DebugPfCnsl.println("length = " + coor.RectHpTitleBar().Width + "  detectedHpBar = " + detectedHpBarIndex);
-                float percentHpValue = ((float)((float)detectedHpBarIndex / (float)(coor.RectHpTitleBar().Width - 1)) * 100f);
-               
-               
+
+                float percentHpValue = ((float)detectedHpBarIndex / (float)(coor.RectHpTitleBar().Width - 1)) * 100f;
                 resultArray[0] = (int)percentHpValue;
-               // Console.WriteLine("Şu anki hp değeri int = " + percentHpValue);
-                
-               // return resultArray;
             }
-            if (targetSpEmptyBar.Length == imagesObject.arrayEmptyBar.Length)
+            else
             {
+                FileLogger.Warning("HP barı okunamadı (görüntü alınamadı veya referans uzunluğu " +
+                    "eşleşmiyor), bu turda pot basılmayacak");
+            }
+
+            if (targetSpEmptyBar != null && imagesObject.arrayEmptyBar != null &&
+                targetSpEmptyBar.Length == imagesObject.arrayEmptyBar.Length &&
+                targetSpEmptyBar.Length > 0)
+            {
+                int detectedSpBarIndex = 0;
                 for (int titleX = coor.RectManaTitleBar().Width - 1; titleX >= 0; titleX--)
                 {
                     if (!imagesObject.CompareTwoRgbIntAdvanced(imagesObject.arrayEmptyBar[titleX],
@@ -128,21 +141,15 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
                         break;
                     }
                 }
-                // DebugPfCnsl.println("length = " + coor.RectHpTitleBar().Width + "  detectedHpBar = " + detectedHpBarIndex);
-                float percentSpValue = ((float)((float)detectedSpBarIndex / (float)(coor.RectManaTitleBar().Width - 1)) * 100f);
 
-                
+                float percentSpValue = ((float)detectedSpBarIndex / (float)(coor.RectManaTitleBar().Width - 1)) * 100f;
                 resultArray[1] = (int)percentSpValue;
-                // Console.WriteLine("Şu anki hp değeri int = " + percentHpValue);
-           
-               // return resultArray;
             }
             else
             {
-                DebugPfCnsl.println("İkisinin uzunluğu aynı değil");
+                FileLogger.Warning("SP barı okunamadı (görüntü alınamadı veya referans uzunluğu " +
+                    "eşleşmiyor), bu turda pot basılmayacak");
             }
-          //  DebugPfCnsl.println("Tespit edilen Hp ve Sp değerleri = ");
-           // DebugPfCnsl.PrintArray(resultArray);
 
             return resultArray;
         }
@@ -348,8 +355,20 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
         public void ControlAndFillTheHpAndSp()
         {
             int[] controlHpSpValue = ControlHpAndManaBar();
+
+            // Kullanici yuzdeleri metot basinda BIR KEZ okunur. (Eski kod her
+            // dongu adiminda paylasilan diziye erisiyordu; pot basma donguleri
+            // icinde bu gereksiz tekrar ve yarisma riski demekti.)
+            int[] hpSpRates = ThreadGlobals.GetHpSpRate();
+            int hpRateLimit = hpSpRates[0];
+            int spRateLimit = hpSpRates[1];
+
+            // Pot basma donguleri, bar yuzdesi okunamadiginda veya envanterde pot
+            // kalmadiginda SONSUZA kadar donebilirdi (karakter bos yere pot tusuna
+            // basmaya devam ederdi). Toplam deneme sayisi sinirlandi.
+            int fillAttempts = 0;
             //Check hp empty rate value according to user decision
-            if (controlHpSpValue[0] <= ThreadGlobals.HP_SP_RATE[0])
+            if (controlHpSpValue[0] <= hpRateLimit)
             {
                 if (rectCurrentRedPotPos != Rectangle.Empty)
                 {
@@ -370,15 +389,25 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
                                 //if (rectCurrentRedPotPos.X == coor.RectSkillSlotFirstPlace().X + (32 * firstSlot))
                                 if(rectContainer.Contains(rectCurrentRedPotPos))
                                 {
-                                    while (controlHpSpValue[0] <= ThreadGlobals.HP_SP_RATE[0])
+                                    while (controlHpSpValue[0] <= hpRateLimit && fillAttempts < MAX_POT_FILL_ATTEMPTS)
                                     {
-                                        if (ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isSettingButtonSeemed)
+                                        if (ThreadGlobals.isLevelFarmStopped || ThreadGlobals.CheckGameIsStopped()
+                                            || !ThreadGlobals.isSettingButtonSeemed)
                                         {
                                             DebugPfCnsl.println("ControlAndFillTheHpAndSp is returned");
                                             return;
                                         }
                                         inputs.KeyPress(KeyboardInput.ScanCodeShort.KEY_1 + (short)firstSlot);
                                         controlHpSpValue = ControlHpAndManaBar();
+                                        fillAttempts++;
+
+                                        if (fillAttempts >= MAX_POT_FILL_ATTEMPTS)
+                                        {
+                                            FileLogger.Warning("Pot basma " + MAX_POT_FILL_ATTEMPTS +
+                                                " denemede tamamlanamadi (envanterde pot kalmamis" +
+                                                " veya bar okunamiyor olabilir), dongu sonlandirildi");
+                                            break;
+                                        }
                                     }                                 
                                     break;
                                 }
@@ -397,15 +426,25 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
                                if(rectContainer.Contains(rectCurrentRedPotPos))
                                 {
                                     // DebugPfCnsl.println("çalişmasi basmasıdır");
-                                    while (controlHpSpValue[0] <= ThreadGlobals.HP_SP_RATE[0])
+                                    while (controlHpSpValue[0] <= hpRateLimit && fillAttempts < MAX_POT_FILL_ATTEMPTS)
                                     {
-                                        if (ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isSettingButtonSeemed)
+                                        if (ThreadGlobals.isLevelFarmStopped || ThreadGlobals.CheckGameIsStopped()
+                                            || !ThreadGlobals.isSettingButtonSeemed)
                                         {
                                             DebugPfCnsl.println("ControlAndFillTheHpAndSp is returned");
                                             return;
                                         }
                                         inputs.KeyPress(KeyboardInput.ScanCodeShort.F1 + (short)secondSlot);
                                         controlHpSpValue = ControlHpAndManaBar();
+                                        fillAttempts++;
+
+                                        if (fillAttempts >= MAX_POT_FILL_ATTEMPTS)
+                                        {
+                                            FileLogger.Warning("Pot basma " + MAX_POT_FILL_ATTEMPTS +
+                                                " denemede tamamlanamadi (envanterde pot kalmamis" +
+                                                " veya bar okunamiyor olabilir), dongu sonlandirildi");
+                                            break;
+                                        }
                                     }
                                     
                                     break;
@@ -427,7 +466,7 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
                 }
             }
             //Check sp empty rate value according to user decision
-            if (controlHpSpValue[1] <= ThreadGlobals.HP_SP_RATE[1])
+            if (controlHpSpValue[1] <= spRateLimit)
             {
                 if (rectCurrentBluePotPos != Rectangle.Empty)
                 {
@@ -448,15 +487,25 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
                                 //if (rectCurrentBluePotPos.X == coor.RectSkillSlotFirstPlace().X + (32 * firstSlot))
                                 if(rectContainer.Contains(rectCurrentBluePotPos))
                                 {
-                                    while (controlHpSpValue[1] <= ThreadGlobals.HP_SP_RATE[1])
+                                    while (controlHpSpValue[1] <= spRateLimit && fillAttempts < MAX_POT_FILL_ATTEMPTS)
                                     {
-                                        if (ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isSettingButtonSeemed)
+                                        if (ThreadGlobals.isLevelFarmStopped || ThreadGlobals.CheckGameIsStopped()
+                                            || !ThreadGlobals.isSettingButtonSeemed)
                                         {
                                             DebugPfCnsl.println("ControlAndFillTheHpAndSp is returned");
                                             return;
                                         }
                                         inputs.KeyPress(KeyboardInput.ScanCodeShort.KEY_1 + (short)firstSlot);
                                         controlHpSpValue = ControlHpAndManaBar();
+                                        fillAttempts++;
+
+                                        if (fillAttempts >= MAX_POT_FILL_ATTEMPTS)
+                                        {
+                                            FileLogger.Warning("Pot basma " + MAX_POT_FILL_ATTEMPTS +
+                                                " denemede tamamlanamadi (envanterde pot kalmamis" +
+                                                " veya bar okunamiyor olabilir), dongu sonlandirildi");
+                                            break;
+                                        }
                                     }
                                   
                                     break;
@@ -474,15 +523,25 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
                               //  if (rectCurrentBluePotPos.X == coor.RectSkillSlotSecondPlace().X + (32 * secondSlot))
                               if(rectContainer.Contains(rectCurrentBluePotPos))
                                 {
-                                    while (controlHpSpValue[1] <= ThreadGlobals.HP_SP_RATE[1])
+                                    while (controlHpSpValue[1] <= spRateLimit && fillAttempts < MAX_POT_FILL_ATTEMPTS)
                                     {
-                                        if (ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isSettingButtonSeemed)
+                                        if (ThreadGlobals.isLevelFarmStopped || ThreadGlobals.CheckGameIsStopped()
+                                            || !ThreadGlobals.isSettingButtonSeemed)
                                         {
                                             DebugPfCnsl.println("ControlAndFillTheHpAndSp is returned");
                                             return;
                                         }
                                         inputs.KeyPress(KeyboardInput.ScanCodeShort.F1 + (short)secondSlot);
                                         controlHpSpValue = ControlHpAndManaBar();
+                                        fillAttempts++;
+
+                                        if (fillAttempts >= MAX_POT_FILL_ATTEMPTS)
+                                        {
+                                            FileLogger.Warning("Pot basma " + MAX_POT_FILL_ATTEMPTS +
+                                                " denemede tamamlanamadi (envanterde pot kalmamis" +
+                                                " veya bar okunamiyor olabilir), dongu sonlandirildi");
+                                            break;
+                                        }
                                     }                                 
                                     break;
                                 }

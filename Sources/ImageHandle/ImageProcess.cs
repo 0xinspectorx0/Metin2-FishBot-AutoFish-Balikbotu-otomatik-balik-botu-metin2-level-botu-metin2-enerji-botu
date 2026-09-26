@@ -251,6 +251,10 @@ namespace MusicPlayerApp.Sources.ImageHandle
                 }
             }
             //System.out.println("comparable array length = " + comparableArray.length + "equality var = " + equalityNum);
+            if (sourceArray == null || sourceArray.Length <= 0)
+            {
+                return false;
+            }
             return equalityNum >= ((sourceArray.Length / (int)sensiblityLevel) - ((5 * sourceArray.Length) / 100));
         }
 
@@ -506,11 +510,11 @@ namespace MusicPlayerApp.Sources.ImageHandle
         }
         public Rectangle[] FindAllImagesOnScreen(int[] targetImage, Rectangle targetRect, Rectangle scannedArea)
         {
-            if (targetImage.Length != targetRect.Width * targetRect.Height)
+            if (targetImage == null || targetImage.Length == 0 ||
+                targetImage.Length != targetRect.Width * targetRect.Height)
             {
-                // throw new ArgumentException("targetImage array size must be equal to targetRect width * height");
-                DebugPfCnsl.println("FindAllImagesOnScreen is returned null");
-                return null;
+                FileLogger.Warning("FindAllImagesOnScreen: referans goruntu boyutu ornek alanla eslesmiyor, bos sonuc");
+                return new Rectangle[0];
             }
             Rectangle ssBound;
 
@@ -525,89 +529,113 @@ namespace MusicPlayerApp.Sources.ImageHandle
 
 
             var rectangles = new List<Rectangle>();
-            Bitmap fullScreenImage = screenshot.CaptureSpecifiedScreen(ssBound);
 
-            for (int y = 0; y < fullScreenImage.Height; y++)
+            // Eski surum tam ekran bitmap'i uzerinde her konum icin GetPixel cagiriyordu
+            // ve bitmap dispose edilmiyordu (GDI sizintisi + asiri CPU). Artik tek bir
+            // LockBits donusumuyle dizi uzerinde taranir.
+            int[] scanImage = screenshot.ImageArraySpecifiedArea(ssBound);
+            if (scanImage == null)
             {
-                for (int x = 0; x < fullScreenImage.Width; x++)
+                FileLogger.Warning("FindAllImagesOnScreen: ekran goruntusu alinamadi, bos sonuc donuldu");
+                return new Rectangle[0];
+            }
+
+            Point gameOffset = scannedArea != Rectangle.Empty ? CheckGameCoordinate.currentScreenGamePoint : Point.Empty;
+
+            for (int y = 0; y <= ssBound.Height - targetRect.Height; y++)
+            {
+                for (int x = 0; x <= ssBound.Width - targetRect.Width; x++)
                 {
-
-                    if (IsMatch(targetImage, targetRect, fullScreenImage, x, y))
+                    if (IsMatchIntArrays(targetImage, targetRect, scanImage, ssBound, x, y))
                     {
-                        if (scannedArea != Rectangle.Empty)
-                        {
-                            rectangles.Add(new Rectangle(x + ssBound.X + CheckGameCoordinate.currentScreenGamePoint.X,
-                                y + ssBound.Y + CheckGameCoordinate.currentScreenGamePoint.Y,
-                                targetRect.Width, targetRect.Height));
-                        }
-                        else
-                        {
-                            rectangles.Add(new Rectangle(x, y, targetRect.Width, targetRect.Height));
-                        }
-
+                        rectangles.Add(new Rectangle(
+                            x + ssBound.X + gameOffset.X,
+                            y + ssBound.Y + gameOffset.Y,
+                            targetRect.Width, targetRect.Height));
                     }
                 }
             }
             return rectangles.ToArray();
         }
+
+        /// <summary>
+        /// Ekranda bir sembolu arar ve buldugu ilk eslesmenin dikdortgenini doner.
+        /// </summary>
+        /// <remarks>
+        /// Eski surum her konum icin <c>Bitmap.GetPixel</c> cagiriyordu (tam ekran icin
+        /// yuz milyonlarca GDI+ cagrisi) ve <c>CaptureScreen()</c> ile alinan bitmap'i
+        /// dispose etmiyordu. Bu metot ikisini de duzeltir: ekran bir kez yakalanir,
+        /// LockBits ile diziye cevrilir ve tarama dizi uzerinde yapilir.
+        /// </remarks>
         public Rectangle FindImageOnScreen(int[] targetImage, Rectangle targetRect)
         {
+            return FindImageInArea(targetImage, targetRect, Rectangle.Empty);
+        }
+
+        /// <summary>
+        /// Verilen alan icinde bir sembolu arar. <paramref name="scannedArea"/> bos ise
+        /// tum ekran taranir.
+        /// </summary>
+        public Rectangle FindImageInArea(int[] targetImage, Rectangle targetRect, Rectangle scannedArea)
+        {
+            if (targetImage == null || targetImage.Length == 0)
+            {
+                FileLogger.Warning("FindImageInArea: referans goruntu null/bos");
+                return Rectangle.Empty;
+            }
             if (targetImage.Length != targetRect.Width * targetRect.Height)
             {
-                //throw new ArgumentException("targetImage array size must be equal to targetRect width * height");
-
-                DebugPfCnsl.println("FindImageOnScreen returned empty");
+                FileLogger.Warning("FindImageInArea: referans goruntu boyutu (" + targetImage.Length +
+                    ") ornek alanla (" + (targetRect.Width * targetRect.Height) + ") eslesmiyor");
                 return Rectangle.Empty;
             }
 
-            Bitmap fullScreenImage = screenshot.CaptureScreen();
+            Rectangle ssBound = scannedArea == Rectangle.Empty ? Screen.PrimaryScreen.Bounds : scannedArea;
 
-            for (int y = 0; y < fullScreenImage.Height; y++)
+            int[] scanImage = screenshot.ImageArraySpecifiedArea(ssBound);
+            if (scanImage == null)
             {
-                for (int x = 0; x < fullScreenImage.Width; x++)
-                {
+                return Rectangle.Empty;
+            }
 
-                    if (IsMatch(targetImage, targetRect, fullScreenImage, x, y))
+            for (int y = 0; y <= ssBound.Height - targetRect.Height; y++)
+            {
+                for (int x = 0; x <= ssBound.Width - targetRect.Width; x++)
+                {
+                    if (IsMatchIntArrays(targetImage, targetRect, scanImage, ssBound, x, y))
                     {
-                        return new Rectangle(x, y, targetRect.Width, targetRect.Height);
+                        return new Rectangle(x + ssBound.X, y + ssBound.Y, targetRect.Width, targetRect.Height);
                     }
                 }
             }
             return Rectangle.Empty;
         }
 
-        private bool IsMatch(int[] targetImage, Rectangle targetRect, Bitmap comparableImage, int x, int y)
-        {
-            if (x + targetRect.Width > comparableImage.Width || y + targetRect.Height > comparableImage.Height)
-            {
-              //  DebugPfCnsl.println("IsMatch burada hata var");
-                return false;
-            }
-                
-
-            Color color = Color.White;
-            for (int height = 0; height < targetRect.Height; height++)
-            {
-                for (int x2 = 0; x2 < targetRect.Width; x2++)
-                {
-                    color = comparableImage.GetPixel(x + x2, y + height);
-                    int argb = color.ToArgb();
-                    // if (argb != targetImage[height * targetRect.Width + x2])
-                    if (!CompareTwoRgbIntAdvanced(argb, targetImage[height * targetRect.Width + x2]))
-                    {
-                        return false;
-                    }
-                }
-            }
-            return true;
-        }
+        // NOT (bakım turu): Burada eskiden Bitmap üzerinden piksel piksel karşılaştırma
+        // yapan `IsMatch(int[], Rectangle, Bitmap, int, int)` metodu duruyordu. Projede
+        // HİÇBİR yerden çağrılmıyordu ve her piksel için Bitmap.GetPixel kullandığı için
+        // çağrılsaydı bile çok yavaş olacaktı. Aynı işi yapan dizi tabanlı sürüm
+        // (IsMatchIntArrays) zaten mevcut; bu yüzden ölü metot kaldırıldı.
 
         public bool IsMatchIntArrays(int[] targetImage, Rectangle targetRect, int[] scanImage, Rectangle scanRect, int x, int y)
         {
-            if (x + targetRect.Width > scanRect.Width || y + targetRect.Height > scanRect.Height)
+            if (targetImage == null || scanImage == null)
+            {
                 return false;
+            }
+            if (x < 0 || y < 0 ||
+                x + targetRect.Width > scanRect.Width || y + targetRect.Height > scanRect.Height)
+            {
+                return false;
+            }
 
             int scanImageBaseValue = (y * scanRect.Width) + x;
+
+            // Ucuz on-kontrol: ilk piksel eslesmiyorsa tum sablonu karsilastirmaya gerek yok.
+            if (!CompareTwoRgbIntAdvanced(scanImage[scanImageBaseValue], targetImage[0]))
+            {
+                return false;
+            }
 
             for (int height = 0; height < targetRect.Height; height++)
             {
@@ -626,9 +654,15 @@ namespace MusicPlayerApp.Sources.ImageHandle
         }
         public bool IsMatchBoolArrays(bool[] targetImage, Rectangle targetRect, bool[] scanImage, Rectangle scanRect, int x, int y)
         {
-
-            if (x + targetRect.Width > scanRect.Width || y + targetRect.Height > scanRect.Height)
+            if (targetImage == null || scanImage == null)
+            {
                 return false;
+            }
+            if (x < 0 || y < 0 ||
+                x + targetRect.Width > scanRect.Width || y + targetRect.Height > scanRect.Height)
+            {
+                return false;
+            }
  
             int scanImageBaseValue = (y * scanRect.Width) + x;
             //int scanWidthCounter = 0;
@@ -695,7 +729,7 @@ namespace MusicPlayerApp.Sources.ImageHandle
 
 
             // int [] comparableArray = takeScreenShotReturnRGBarray(scanWantedArea);
-            int[] comparableArray = screenshot.ConvertBitmapToArray(screenshot.CaptureSpecifiedScreen(scanWantedArea));
+            int[] comparableArray = screenshot.CaptureAreaAsArray(scanWantedArea);
 
 
             for (int yPos = 0; yPos < scanWantedArea.Height; yPos++)
@@ -760,7 +794,7 @@ namespace MusicPlayerApp.Sources.ImageHandle
 
 
             // int [] comparableArray = takeScreenShotReturnRGBarray(scanWantedArea);
-            //int[] comparableArray = screenshot.ConvertBitmapToArray(screenshot.CaptureSpecifiedScreen(scanWantedArea));
+            //int[] comparableArray = screenshot.CaptureAreaAsArray(scanWantedArea);
 
 
             for (int yPos = 0; yPos < scanWantedArea.Height; yPos++)
@@ -821,7 +855,7 @@ namespace MusicPlayerApp.Sources.ImageHandle
 
 
             // int [] comparableArray = takeScreenShotReturnRGBarray(scanWantedArea);
-            int[] comparableArray = screenshot.ConvertBitmapToArray(screenshot.CaptureSpecifiedScreen(scanWantedArea));
+            int[] comparableArray = screenshot.CaptureAreaAsArray(scanWantedArea);
 
 
             for (int yPos = 0; yPos < scanWantedArea.Height; yPos++)
@@ -884,7 +918,7 @@ namespace MusicPlayerApp.Sources.ImageHandle
 
             int rectArraySize = 0;
             // int [] comparableArray = takeScreenShotReturnRGBarray(rectBorderedBefore);
-            int[] comparableArray = screenshot.ConvertBitmapToArray(screenshot.CaptureSpecifiedScreen(rectBorderedBefore));
+            int[] comparableArray = screenshot.CaptureAreaAsArray(rectBorderedBefore);
 
             for (int firstXPos = 0; firstXPos < rectBorderedBefore.Width; firstXPos++)
             {
@@ -1036,7 +1070,7 @@ namespace MusicPlayerApp.Sources.ImageHandle
 
             int rectArraySize = 0;
             // int [] comparableArray = takeScreenShotReturnRGBarray(rectBorderedBefore);
-            //int[] comparableArray = screenshot.ConvertBitmapToArray(screenshot.CaptureSpecifiedScreen(rectBorderedBefore));
+            //int[] comparableArray = screenshot.CaptureAreaAsArray(rectBorderedBefore);
 
             for (int firstXPos = 0; firstXPos < rectBorderedBefore.Width; firstXPos++)
             {

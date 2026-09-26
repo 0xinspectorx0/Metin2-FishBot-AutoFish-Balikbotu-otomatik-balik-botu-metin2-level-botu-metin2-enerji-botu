@@ -1,11 +1,33 @@
-﻿using MusicPlayerApp.Debugs;
+using MusicPlayerApp.Debugs;
 using System;
 using System.Diagnostics;
 using System.Threading;
 
-
 namespace MusicPlayerApp.Sources
 {
+    /// <summary>
+    /// Botun tüm zamanlama ihtiyaçlarını karşılar: gecikme/geri sayım kontrolleri,
+    /// rastgele bekleme süreleri, çalışma-mola döngüleri ve bilgisayar hızı ölçümü.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Metot adı uyarısı:</b> <see cref="CheckDelayTimeInSecond"/> ve kardeşleri
+    /// "<i>verilen süre HENÜZ dolmadı mı?</i>" sorusuna cevap verir. Yani <c>true</c>
+    /// dönüyorsa beklemeye devam edilmelidir, <c>false</c> dönüyorsa süre dolmuştur.
+    /// Kod tabanındaki kullanımlar (<c>if (!timer.CheckDelayTimeInSecond(3))</c>) bu
+    /// anlama göre yazılmıştır; davranış korunmuş, yalnızca açıklama eklenmiştir.</para>
+    ///
+    /// <para><b>Bakım turunda düzeltilenler:</b></para>
+    /// <list type="bullet">
+    /// <item>Her çağrıda <c>new Random()</c> yaratılıyordu. <see cref="Random"/> zaman
+    /// tohumlu olduğundan art arda yapılan çağrılar <b>aynı</b> sayıyı üretiyor, yani
+    /// "rastgele" mola/tıklama süreleri sabitleniyordu. Artık kilit altında tek bir
+    /// örnek kullanılıyor.</item>
+    /// <item><see cref="StartTimeBreakMinute"/> / <see cref="StartTimeBreakSecond"/>
+    /// mola süresi boyunca <c>Thread.Sleep</c> olmadan dönüyor (CPU %100) ve mola
+    /// sırasında DURDUR'a basılsa bile uyanamıyordu. Artık saniyelik aralıklarla
+    /// uyuyup durdurma isteğini kontrol ediyor.</item>
+    /// </list>
+    /// </remarks>
     internal class TimerGame
     {
         private long StartedMilliSecTime = 0L;
@@ -13,179 +35,260 @@ namespace MusicPlayerApp.Sources
         private long StartedMinuteTime = 0L;
 
         private int breakTime = 0;
-
         private bool isBreakTimeDefined = false;
 
+        /// <summary>"Hızlı bilgisayar" kabul edilen eşik işlemci performans yüzdesi.</summary>
         private static readonly float FAST_PC_CPU_MHZ = 150;
 
+        /// <summary>Kullanıcı "PC yavaş" seçeneğini işaretledi mi?</summary>
         public static volatile bool IS_PC_SLOW = false;
 
+        /// <summary>Aralıksız balık tutma süresi (dakika, alt sınır).</summary>
         public static volatile int MIN_WORK_TIME = 0;
+        /// <summary>Aralıksız balık tutma süresi (dakika, üst sınır).</summary>
         public static volatile int MAX_WORK_TIME = 0;
 
+        /// <summary>Mola süresi (dakika, alt sınır).</summary>
         public static volatile int MIN_BREAK_TIME = 0;
+        /// <summary>Mola süresi (dakika, üst sınır).</summary>
         public static volatile int MAX_BREAK_TIME = 0;
+        /// <summary>Botun tamamen durdurulacağı toplam süre (dakika).</summary>
         public static volatile int GAME_STOP_TIME = 0;
 
+        #region Rastgele sayı üretimi
+
+        /// <summary>
+        /// Tüm bot tarafından paylaşılan tek <see cref="Random"/> örneği.
+        /// </summary>
+        private static readonly Random sharedRandom = new Random();
+        private static readonly object randomLock = new object();
+
+        /// <summary>
+        /// <paramref name="minValue"/> (dahil) ile <paramref name="maxValue"/> (hariç)
+        /// arasında rastgele bir tam sayı üretir.
+        /// </summary>
+        /// <remarks>
+        /// Geriye dönük uyumluluk için eski davranış korunmuştur:
+        /// <c>minValue &gt;= maxValue</c> ise aralık <c>[0, minValue]</c> olarak kabul edilir.
+        /// Bu durum genelde bir yapılandırma hatasıdır ve <see cref="FileLogger"/> ile loglanır.
+        /// </remarks>
         public static int MakeRandomValue(int minValue, int maxValue)
         {
-
             if (minValue >= maxValue)
             {
+                FileLogger.Warning("MakeRandomValue: min (" + minValue + ") >= max (" + maxValue +
+                    ") -> aralık 0.." + minValue + " olarak kullanıldı. Ayarları kontrol edin.");
+
+                if (minValue <= 0)
+                {
+                    return 0;
+                }
                 maxValue = minValue;
-                minValue = 0;              
+                minValue = 0;
             }
-            Random random = new Random();
-            return random.Next(minValue,maxValue);
+
+            lock (randomLock)
+            {
+                return sharedRandom.Next(minValue, maxValue);
+            }
         }
 
+        /// <summary>
+        /// <see cref="MakeRandomValue"/> sonucu + 1000 ms döner (saniyelik rastgele gecikme).
+        /// </summary>
+        public static int MakeRandomTimeSecond(int minValue, int maxValue)
+        {
+            return MakeRandomValue(minValue, maxValue) + 1000;
+        }
+
+        #endregion
+
+        #region Bilgisayar hızı ölçümü
+
+        /// <summary>
+        /// İşlemci performans yüzdesini ölçer ve bilgisayarın "yavaş" sayılıp
+        /// sayılmayacağını döner.
+        /// </summary>
         public static bool DecideSlowOrFastPC()
         {
-            float MyCpuSpeed = MeasureCPUSpeed();
+            float myCpuSpeed = MeasureCPUSpeed();
 
-            if(FAST_PC_CPU_MHZ - MyCpuSpeed >= 55)
+            if (FAST_PC_CPU_MHZ - myCpuSpeed >= 55)
             {
-                DebugPfCnsl.println("This Pc is slow :( ");
+                DebugPfCnsl.println("Bu bilgisayar yavaş, balık tutma hızı düşürülecek");
                 return true;
             }
 
-            DebugPfCnsl.println("This Pc is Fast :) ");
+            DebugPfCnsl.println("Bu bilgisayar hızlı");
             return false;
         }
 
+        /// <summary>
+        /// <c>Processor Information / % Processor Performance</c> sayacından işlemci
+        /// performans yüzdesini okur. Okunamazsa 0 döner.
+        /// </summary>
         public static float MeasureCPUSpeed()
         {
-            // İşlemci hızını öğrenmek için PerformanceCounter kullan
-            PerformanceCounter cpuCounter = new PerformanceCounter("Processor Information", "% Processor Performance", "_Total");
+            try
+            {
+                using (PerformanceCounter cpuCounter = new PerformanceCounter(
+                    "Processor Information", "% Processor Performance", "_Total"))
+                {
+                    // İlk okuma genelde 0 döner; doğru ölçüm için bir saniye beklenir.
+                    cpuCounter.NextValue();
+                    Thread.Sleep(1000);
+                    float cpuFrequency = cpuCounter.NextValue();
 
-            // İlk okuma genellikle 0 döner, bu yüzden bir okuma daha yapıyoruz
-            float initialValue = cpuCounter.NextValue();
-            System.Threading.Thread.Sleep(1000); // 1 saniye bekleyerek işlemci hızının doğru ölçülmesini sağla
-            float cpuFrequency = cpuCounter.NextValue();
-
-            Console.WriteLine($"İşlemci Hızı: {cpuFrequency} MHz");
-
-            return cpuFrequency;
+                    FileLogger.Info(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        "İşlemci performansı: {0:0.0}", cpuFrequency));
+                    return cpuFrequency;
+                }
+            }
+            catch (Exception ex)
+            {
+                // Performans sayaçları bazı sistemlerde (örn. çekirdek sayısı yüksek veya
+                // sanallaştırılmış makinelerde) hata verebilir; botu durdurmamalı.
+                FileLogger.Error("İşlemci hızı ölçülemedi", ex);
+                return 0f;
+            }
         }
 
+        /// <summary>
+        /// Basit bir döngü üzerinden ortalama işlem süresini ölçer (tanılama amaçlı).
+        /// </summary>
         public static void MeasureProcessSpeed()
         {
-            // Ortalama işlem süresini ölçmek için değişkenler
             const int numberOfIterations = 100;
             long totalElapsedTicks = 0;
 
             for (int i = 0; i < numberOfIterations; i++)
             {
                 Stopwatch stopwatch = Stopwatch.StartNew();
-                // Ölçmek istediğiniz işlem burada olmalı
                 for (int k = 0; k < 1000; k++)
                 {
-                    // Basit bir işlem: döngü ile bir şeyler yap
                     Math.Sqrt(k);
                 }
                 stopwatch.Stop();
                 totalElapsedTicks += stopwatch.ElapsedTicks;
             }
 
-            // Ortalama süreyi hesapla
-            double averageElapsedMilliseconds = (totalElapsedTicks / (double)numberOfIterations) / Stopwatch.Frequency * 1000;
+            double averageElapsedMilliseconds = (totalElapsedTicks / (double)numberOfIterations)
+                / Stopwatch.Frequency * 1000;
+            double operationsPerMillisecond = averageElapsedMilliseconds <= 0
+                ? 0
+                : 1000.0 / averageElapsedMilliseconds;
 
-            Console.WriteLine($"Ortalama İşlem Süresi: {averageElapsedMilliseconds} ms");
-
-            // Ortalama işlem hızını hesapla (işlemler/ms)
-            double operationsPerMillisecond = 1000.0 / averageElapsedMilliseconds;
-            Console.WriteLine($"Ortalama İşlem Hızı: {operationsPerMillisecond} işlemler/ms");
-
+            FileLogger.Info(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "Ortalama işlem süresi: {0:0.0000} ms ({1:0.0} işlem/ms)",
+                averageElapsedMilliseconds, operationsPerMillisecond));
         }
-        public static int MakeRandomTimeSecond(int  minValue, int maxValue)
+
+        #endregion
+
+        #region Bekleme (Sleep) yardımcıları
+
+        /// <summary>
+        /// <see cref="MakeRandomValue"/>(min,max) kadar milisaniye bekler.
+        /// </summary>
+        public static void SleepRandom(int minValue, int maxValue)
         {
-            if (minValue >= maxValue)
+            int waitTime = MakeRandomValue(minValue, maxValue);
+            if (waitTime > 0)
             {
-                maxValue = minValue;
-                minValue = 0;
+                Thread.Sleep(waitTime);
             }
-            Random random = new Random();
-            return random.Next(minValue, maxValue) + 1000;
         }
 
-        public static void SleepRandom(int minValue,int maxValue)
-        {
-            Thread.Sleep(MakeRandomValue(minValue,maxValue));
-           
-        }
-
+        /// <summary>
+        /// "Adapte tutma" seçeneği aktifse ve haritada başka oyuncu varsa yavaş,
+        /// aksi halde hızlı bekler.
+        /// </summary>
         public static void SleepRandomForPlayers(int minValue, int maxValue,
-            int minValuePlayers,int maxValuePlayers)
+            int minValuePlayers, int maxValuePlayers)
         {
-            if(ThreadGlobals.isAdaptableFishing)
+            if (ThreadGlobals.isAdaptableFishing && ThreadGlobals.isAnotherPlayerDetected)
             {
-                if (ThreadGlobals.isAnotherPlayerDetected)
-                {
-                    Thread.Sleep(MakeRandomValue(minValuePlayers, maxValuePlayers));
-                }
-                else
-                {
-                    Thread.Sleep(MakeRandomValue(minValue, maxValue));
-                }
+                SleepRandom(minValuePlayers, maxValuePlayers);
+                return;
             }
-            else
-            {
-                Thread.Sleep(MakeRandomValue(minValue, maxValue));
-            }
-           
+
+            SleepRandom(minValue, maxValue);
         }
 
-        public static void SleepRandomMinute(int minValue,int maxValue)
+        /// <summary>
+        /// <see cref="MakeRandomValue"/>(min,max) <b>dakika</b> kadar bekler.
+        /// </summary>
+        public static void SleepRandomMinute(int minValue, int maxValue)
         {
-            int oneMinuteFromMilis = (60 * 1000);
-            Thread.Sleep(MakeRandomValue(minValue,maxValue) * oneMinuteFromMilis);  
+            int oneMinuteFromMilis = 60 * 1000;
+            long waitTime = (long)MakeRandomValue(minValue, maxValue) * oneMinuteFromMilis;
+
+            // Uzun beklemeler parçalara bölünür; böylece DURDUR isteği anında fark edilir.
+            const long sliceMilliseconds = 1000L;
+            long remaining = waitTime;
+            while (remaining > 0)
+            {
+                if (ThreadGlobals.CheckGameIsStopped())
+                {
+                    FileLogger.Info("SleepRandomMinute: bot durdurulduğu için bekleme yarıda kesildi");
+                    return;
+                }
+
+                int sleepTime = (int)Math.Min(sliceMilliseconds, remaining);
+                Thread.Sleep(sleepTime);
+                remaining -= sleepTime;
+            }
         }
 
-        
+        #endregion
+
+        #region Gecikme / geri sayım kontrolleri
+
+        /// <summary>
+        /// "Verilen <b>saniye</b> henüz dolmadı mı?" sorusunu cevaplar.
+        /// </summary>
+        /// <returns>Süre dolmadıysa <c>true</c>, dolduysa <c>false</c>.</returns>
         public bool CheckDelayTimeInSecond(long delayTime)
         {
             if (StartedSecondTime <= 0L) SetStartedSecondTime();
-            if (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - StartedSecondTime < delayTime)
-            {
-                return true;
-            }
-            return false;
-
+            return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - StartedSecondTime < delayTime;
         }
+
+        /// <summary>
+        /// "Verilen <b>milisaniye</b> henüz dolmadı mı?" sorusunu cevaplar.
+        /// </summary>
+        /// <returns>Süre dolmadıysa <c>true</c>, dolduysa <c>false</c>.</returns>
         public bool CheckDelayTimeInMilliSec(long delayTime)
         {
             if (StartedMilliSecTime <= 0L) SetStartedMilliSecTime();
-            if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - StartedMilliSecTime < delayTime)
-            {
-                return true;
-            }
-            return false;
-
+            return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - StartedMilliSecTime < delayTime;
         }
 
-        public bool CheckDelayTimeInMinute(long delaytime)
+        /// <summary>
+        /// "Verilen <b>dakika</b> henüz dolmadı mı?" sorusunu cevaplar.
+        /// </summary>
+        /// <returns>Süre dolmadıysa <c>true</c>, dolduysa <c>false</c>.</returns>
+        public bool CheckDelayTimeInMinute(long delayTime)
         {
             if (StartedMinuteTime <= 0L) SetStartedMinuteTime();
-            if(((DateTimeOffset.UtcNow.ToUnixTimeSeconds()) - StartedMinuteTime)/60 < delaytime)
-            {
-                return true;
-            }
-
-            return false;
+            return ((DateTimeOffset.UtcNow.ToUnixTimeSeconds() - StartedMinuteTime) / 60) < delayTime;
         }
 
-        public bool CheckCountDownMinute(int minValue, int maxValue =0)
+        /// <summary>
+        /// Rastgele bir dakika aralığı için geri sayar; süre dolduğunda <c>true</c> döner
+        /// ve sayacı sıfırlar (yani her <c>true</c> dönüşü yeni bir periyot başlatır).
+        /// </summary>
+        public bool CheckCountDownMinute(int minValue, int maxValue = 0)
         {
-            
-            if(!isBreakTimeDefined)
+            if (!isBreakTimeDefined)
             {
                 isBreakTimeDefined = true;
-                breakTime = MakeRandomValue(minValue,maxValue);
+                breakTime = MakeRandomValue(minValue, maxValue);
                 SetStartedMinuteTime();
             }
 
             if (!CheckDelayTimeInMinute(breakTime))
-            {                            
+            {
                 isBreakTimeDefined = false;
                 return true;
             }
@@ -193,9 +296,12 @@ namespace MusicPlayerApp.Sources
             return false;
         }
 
+        /// <summary>
+        /// Rastgele bir saniye aralığı için geri sayar; süre dolduğunda <c>true</c> döner
+        /// ve sayacı sıfırlar.
+        /// </summary>
         public bool CheckCountDownSecond(int minValue, int maxValue = 0)
         {
-
             if (!isBreakTimeDefined)
             {
                 isBreakTimeDefined = true;
@@ -216,6 +322,7 @@ namespace MusicPlayerApp.Sources
         {
             StartedMilliSecTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         }
+
         public void SetStartedSecondTime()
         {
             StartedSecondTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -226,37 +333,75 @@ namespace MusicPlayerApp.Sources
             StartedMinuteTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         }
 
+        #endregion
+
+        #region Mola (break) yönetimi
+
+        /// <summary>
+        /// Rastgele bir <b>dakika</b> aralığı boyunca mola verir. Mola sırasında
+        /// karakter "durdu" olarak işaretlenir.
+        /// </summary>
+        /// <remarks>
+        /// Eski sürüm mola boyunca <c>Thread.Sleep</c> olmadan dönüyordu: bir çekirdek
+        /// %100 çalışıyor ve DURDUR'a basılsa bile mola bitene kadar uyanamıyordu.
+        /// Artık saniyelik dilimlerle uyuyup her dilimde durdurma isteği kontrol edilir.
+        /// </remarks>
         public void StartTimeBreakMinute(int minValue, int maxValue)
         {
-            DebugPfCnsl.println("TimeBreaking now ...");
+            int waitResult = MakeRandomValue(minValue, maxValue);
+            FileLogger.Info("Mola veriliyor (dakika cinsinden hedef: " + waitResult + ")");
+
             SetStartedMinuteTime();
+            ThreadGlobals.isCharStopped = true;
 
-            int waitResult = MakeRandomValue(minValue,maxValue);
-            
-            while(CheckDelayTimeInMinute(waitResult))
+            try
             {
-                if(ThreadGlobals.CheckGameIsStopped()) return;
-                ThreadGlobals.isCharStopped = true;
-            }
+                while (CheckDelayTimeInMinute(waitResult))
+                {
+                    if (ThreadGlobals.CheckGameIsStopped())
+                    {
+                        FileLogger.Info("Mola, bot durdurulduğu için erken bitirildi");
+                        return;
+                    }
 
-            ThreadGlobals.isCharStopped = false;
+                    Thread.Sleep(1000);
+                }
+            }
+            finally
+            {
+                ThreadGlobals.isCharStopped = false;
+            }
         }
 
+        /// <summary>
+        /// Rastgele bir <b>saniye</b> aralığı boyunca kısa mola verir.
+        /// </summary>
         public void StartTimeBreakSecond(int minValue, int maxValue)
         {
-            DebugPfCnsl.println("TimeBreaking now ...");
-            SetStartedSecondTime();
-
             int waitResult = MakeRandomValue(minValue, maxValue);
+            FileLogger.Debug("Kısa mola veriliyor (saniye cinsinden hedef: " + waitResult + ")");
 
-            while (CheckDelayTimeInSecond(waitResult))
+            SetStartedSecondTime();
+            ThreadGlobals.isCharStopped = true;
+
+            try
             {
-                if (ThreadGlobals.CheckGameIsStopped()) return;
-                ThreadGlobals.isCharStopped = true;
-            }
+                while (CheckDelayTimeInSecond(waitResult))
+                {
+                    if (ThreadGlobals.CheckGameIsStopped())
+                    {
+                        return;
+                    }
 
-            ThreadGlobals.isCharStopped = false;
+                    Thread.Sleep(250);
+                }
+            }
+            finally
+            {
+                ThreadGlobals.isCharStopped = false;
+            }
         }
 
+        #endregion
     }
 }

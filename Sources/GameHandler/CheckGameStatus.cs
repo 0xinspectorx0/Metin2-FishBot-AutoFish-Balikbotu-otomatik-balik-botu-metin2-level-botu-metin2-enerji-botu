@@ -76,16 +76,11 @@ namespace MusicPlayerApp.Sources.GameHandler
                 return;
             }
 
-            imageEntryScrn = screenShot.ConvertBitmapToArray(screenShot.CaptureSpecifiedScreen
-                (coordinates.RectEntryScreen()));
-            imageKillScrn = screenShot.ConvertBitmapToArray(screenShot.CaptureSpecifiedScreen
-                (coordinates.RectDieScreen()));
-            imageCharScreen = screenShot.ConvertBitmapToArray(screenShot.CaptureSpecifiedScreen
-                (coordinates.RectCharScreen()));
-            imageSaleTitle = screenShot.ConvertBitmapToArray(screenShot.CaptureSpecifiedScreen
-                (coordinates.RectSaleCross()));
-            imageIsCharOnline = screenShot.ConvertBitmapToArray(screenShot.CaptureSpecifiedScreen
-                (coordinates.RectSettingButton()));
+            imageEntryScrn = screenShot.CaptureAreaAsArray(coordinates.RectEntryScreen());
+            imageKillScrn = screenShot.CaptureAreaAsArray(coordinates.RectDieScreen());
+            imageCharScreen = screenShot.CaptureAreaAsArray(coordinates.RectCharScreen());
+            imageSaleTitle = screenShot.CaptureAreaAsArray(coordinates.RectSaleCross());
+            imageIsCharOnline = screenShot.CaptureAreaAsArray(coordinates.RectSettingButton());
 
            // DebugPfCnsl.printlnTime("StartChecking taken images", 2);
 
@@ -132,8 +127,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                 {
                     //debugConsole.printlnTime("detected settingButton ", 2);
 
-                    int[] imageIsActiveFishBoard = screenShot.ConvertBitmapToArray(screenShot
-                        .CaptureSpecifiedScreen(coordinates.RectFishTitle()));
+                    int[] imageIsActiveFishBoard = screenShot.CaptureAreaAsArray(coordinates.RectFishTitle());
 
                     ThreadGlobals.isActiveFishBoard = imageObjects.CompareTwoArrayAdvanced(
                         imageObjects.arrayFishTitle, imageIsActiveFishBoard, ImageSensibilityLevel.SENSIBILTY_MED);
