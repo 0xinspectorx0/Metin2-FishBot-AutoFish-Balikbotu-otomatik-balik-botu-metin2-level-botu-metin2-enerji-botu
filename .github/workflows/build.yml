@@ -35,7 +35,6 @@ on:
 
 permissions:
   contents: write   # Release/asset olusturabilmek icin
-  issues: write     # Derleme hatasini issue yorumu olarak raporlayabilmek icin
 
 jobs:
   build:
@@ -96,7 +95,6 @@ jobs:
       - name: Derleme sonucunu raporla
         if: always()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUILD_EXIT: ${{ steps.build.outputs.exitcode }}
         run: |
           set -uo pipefail
@@ -141,97 +139,10 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           fi
 
-          if [ "$COUNT" -gt 0 ]; then
-            :
-
-            # Log'lar Azure blob üzerinde tutulduğu için kapalı ağlardan
-            # indirilemeyebiliyor; hatalar bu yüzden API üzerinden okunabilen
-            # bir issue yorumu olarak da yayımlanır.
-            {
-              echo "### Otomatik derleme BAŞARISIZ :x:"
-              echo
-              echo "- Çalıştırma: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-              echo "- Ref: `$GITHUB_REF_NAME`  Commit: `$GITHUB_SHA`"
-              echo
-              echo '```'
-              head -n 40 derleme-hatalari.txt
-              echo '```'
-              echo
-              echo "> Bu yorum, `Derleme sonucunu raporla` adımı tarafından otomatik oluşturuldu."
-              echo "> Tam log: Actions → ilgili çalıştırma → `derleme-loglari` artifact'i."
-            } > yorum.md
-            # Not: yorum ISSUES'a değil COMMIT'e yazılır. Sebep: Actions
-            # log'ları Azure blob üzerinde tutulduğu için bazı ağlardan
-            # indirilemiyor; commit yorumu ise REST API'den doğrudan
-            # okunabiliyor (GET /repos/{owner}/{repo}/commits/{sha}/comments).
-            gh api --method POST \
-              "/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments" \
-              -F body=@yorum.md > /dev/null || echo "Commit yorumu yayımlanamadı."
-          fi
-
           echo "$EXIT" > build-exit.txt
           if [ "$EXIT" != "0" ]; then
             echo "::error::Derleme başarısız (çıkış kodu $EXIT, $COUNT hata). Ayrıntı job summary'de."
             exit 1
-          fi
-        shell: bash
-
-      # ---------------------------------------------------------------------
-      # Tanılama kanalı: logları 'ci-logs' dalına yayımla
-      #
-      # Actions log'ları Azure blob (*.blob.core.windows.net) üzerinde
-      # tutuluyor ve bazı ağlardan (ör. kapalı geliştirme ortamları)
-      # indirilemiyor. Commit/issue yorumu da bu token ile yazılamadı.
-      # Çözüm: log, api.github.com üzerinden okunabilen bir dala dosya olarak
-      # yazılır:
-      #   gh api /repos/{owner}/{repo}/contents/build-<run>.log?ref=ci-logs
-      # ---------------------------------------------------------------------
-      - name: Logları ci-logs dalına yayımla
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -uo pipefail
-          REPO="$GITHUB_REPOSITORY"
-          LOGNAME="build-$GITHUB_RUN_ID.log"
-          ERRNAME="errors-$GITHUB_RUN_ID.txt"
-
-          # Actions log'ları Azure blob üzerinde olduğundan buradaki ortamdan
-          # indirilemeyebilir. Son 60 KB + hata satırlarını API ile ci-logs'a yaz.
-          : > build.log.tmp
-          if [ -f build.log ]; then
-            tail -c 60000 build.log | iconv -c -f UTF-8 -t UTF-8 > build.log.tmp || tail -c 60000 build.log > build.log.tmp
-          fi
-          : > derleme-hatalari.tmp
-          if [ -f derleme-hatalari.txt ]; then
-            head -c 20000 derleme-hatalari.txt | iconv -c -f UTF-8 -t UTF-8 > derleme-hatalari.tmp || head -c 20000 derleme-hatalari.txt > derleme-hatalari.tmp
-          fi
-
-          publish_file() {
-            local path="$1"
-            local local_file="$2"
-            local message="$3"
-            local response
-            base64 -w0 "$local_file" > contents-payload.b64
-            response=$(gh api --method PUT \
-              "repos/$REPO/contents/$path" \
-              --field "message=$message" \
-              --field "content=@contents-payload.b64" \
-              --field "branch=ci-logs" 2>&1) || {
-              echo "GitHub Contents API upload failed for $path: $response"
-              echo "::error title=CI log upload failed::$path — $response"
-              return 1
-            }
-            echo "Published $path"
-          }
-
-          if ! publish_file "$LOGNAME" build.log.tmp \
-            "ci: build log for run $GITHUB_RUN_ID ($GITHUB_REF_NAME @ ${GITHUB_SHA:0:7})"; then
-            echo "::error::Could not publish build log."
-          fi
-          if ! publish_file "$ERRNAME" derleme-hatalari.tmp \
-            "ci: compiler errors for run $GITHUB_RUN_ID ($GITHUB_REF_NAME @ ${GITHUB_SHA:0:7})"; then
-            echo "::error::Could not publish compiler errors."
           fi
         shell: bash
 
