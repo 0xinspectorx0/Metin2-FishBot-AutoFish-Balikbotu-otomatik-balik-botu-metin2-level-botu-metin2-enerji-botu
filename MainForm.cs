@@ -231,14 +231,14 @@ namespace MusicPlayerApp
                         }
                         ThreadGlobals.isLevelFarmStopped = false;
                         threadsHandler.Start();
-                        buttonLevelStart.Text = "STOP";
+                        buttonLevelStart.Text = "DURDUR";
                     }
                     else
                     {
                         ThreadGlobals.isLevelFarmStopped = true;
                         threadsHandler.Stop();
                         threadsHandler.HandleFormElement(labelLevelFarmStatus, "Level kasma botu durduruldu");
-                        buttonLevelStart.Text = "START";
+                        buttonLevelStart.Text = "BAŞLAT";
                     }
                 }
                 else
@@ -262,14 +262,14 @@ namespace MusicPlayerApp
                     {
                         ThreadGlobals.isEnergyCristalStopped = false;
                         threadsHandler.Start();
-                        buttonEnergyStart.Text = "STOP";
+                        buttonEnergyStart.Text = "DURDUR";
                         threadsHandler.HandleFormElement(labelEnergyCristal, "Enerji botu başlatıldı");
                     }
                     else
                     {
                         ThreadGlobals.isEnergyCristalStopped = true;
                         threadsHandler.Stop();
-                        buttonEnergyStart.Text = "START";
+                        buttonEnergyStart.Text = "BAŞLAT";
                         threadsHandler.HandleFormElement(labelEnergyCristal, "Enerji botu durduruldu");
                     }
                 }
