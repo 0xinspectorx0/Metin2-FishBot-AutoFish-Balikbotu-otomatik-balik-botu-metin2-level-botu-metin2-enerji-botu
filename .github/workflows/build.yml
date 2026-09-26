@@ -196,10 +196,8 @@ jobs:
           LOGNAME="build-$GITHUB_RUN_ID.log"
           ERRNAME="errors-$GITHUB_RUN_ID.txt"
 
-          # Boyut sınırı: git blob içeriği istek gövdesinde gittiği için log
-          # kırpılır (400 KB'lık ilk deneme API'den döndü). Ayrıca base64
-          # çözümlemesinde jq'nun bozulmaması için geçersiz UTF-8 baytları
-          # ayıklanır (iconv -c).
+          # Keep the API payload small and valid UTF-8. GitHub Actions logs are
+          # stored on Azure blob, which may be inaccessible from this environment.
           : > build.log.tmp
           if [ -f build.log ]; then
             tail -c 60000 build.log | iconv -c -f UTF-8 -t UTF-8 > build.log.tmp || tail -c 60000 build.log > build.log.tmp
@@ -208,36 +206,20 @@ jobs:
           if [ -f derleme-hatalari.txt ]; then
             head -c 20000 derleme-hatalari.txt | iconv -c -f UTF-8 -t UTF-8 > derleme-hatalari.tmp || head -c 20000 derleme-hatalari.txt > derleme-hatalari.tmp
           fi
-          echo "Log boyutu: $(wc -c < build.log.tmp) bayt, hata dosyası: $(wc -c < derleme-hatalari.tmp) bayt"
 
-          if gh api "/repos/$REPO/contents/README.md?ref=ci-logs" --jq '.sha' > /dev/null 2>&1; then
-            PARENT=$(gh api "/repos/$REPO/git/refs/heads/ci-logs" --jq '.object.sha')
-            BASE=(--field "base_tree=$PARENT")
-          else
-            BASE=()
-          fi
+          publish_file() {
+            local path="$1" local_file="$2" message="$3" content payload response
+            content=$(base64 -w0 "$local_file")
+            payload=$(jq -n --arg message "$message" --arg content "$content" --arg branch "ci-logs"               '{message:$message, content:$content, branch:$branch}')
+            response=$(printf '%s' "$payload" | gh api --method PUT               "/repos/$REPO/contents/$path" --input - 2>&1) || {
+                echo "GitHub Contents API upload failed for $path: $response"
+                return 1
+              }
+            echo "Published $path"
+          }
 
-          B64LOG=$(base64 -w0 build.log.tmp)
-          B64ERR=$(base64 -w0 derleme-hatalari.tmp)
-          TREE_JSON=$(printf '{"tree":[{"path":"README.md","mode":"100644","type":"blob","content":"Bu dal CI tanılama logları için kullanılır. Kod içermez.\n"},{"path":"%s","mode":"100644","type":"blob","content":"%s"},{"path":"%s","mode":"100644","type":"blob","content":"%s"}]}' "$LOGNAME" "$B64LOG" "$ERRNAME" "$B64ERR")
-
-          if ! TREE_SHA=$(printf '%s' "$TREE_JSON" | gh api --method POST "/repos/$REPO/git/trees" --input - --jq '.sha' 2>&1); then
-            echo "Tree oluşturulamadı: $TREE_SHA"
-            exit 0
-          fi
-          echo "tree=$TREE_SHA"
-          # Commit gövdesi JSON olarak gönderilir: `gh api -f` alan değerlerini
-          # sayıya çevirmeye çalıştığı için sha değerleri bozulabiliyor.
-          if [ -n "${PARENT:-}" ]; then
-            COMMIT_BODY=$(printf '{"message":"ci: derleme logu — çalıştırma #%s (%s @ %s)","tree":"%s","parents":["%s"]}' "$GITHUB_RUN_ID" "$GITHUB_REF_NAME" "${GITHUB_SHA:0:7}" "$TREE_SHA" "$PARENT")
-          else
-            COMMIT_BODY=$(printf '{"message":"ci: derleme logu — çalıştırma #%s (%s @ %s)","tree":"%s","parents":[]}' "$GITHUB_RUN_ID" "$GITHUB_REF_NAME" "${GITHUB_SHA:0:7}" "$TREE_SHA")
-          fi
-          COMMIT_SHA=$(printf '%s' "$COMMIT_BODY" | gh api --method POST "/repos/$REPO/git/commits" --input - --jq '.sha')
-
-          gh api --method PATCH "/repos/$REPO/git/refs/heads/ci-logs" \
-            --field "sha=$COMMIT_SHA" --field force=true > /dev/null
-          echo "Log yayımlandı: https://github.com/$REPO/blob/ci-logs/$LOGNAME"
+          publish_file "$LOGNAME" build.log.tmp             "ci: build log for run $GITHUB_RUN_ID ($GITHUB_REF_NAME @ ${GITHUB_SHA:0:7})" || true
+          publish_file "$ERRNAME" derleme-hatalari.tmp             "ci: compiler errors for run $GITHUB_RUN_ID ($GITHUB_REF_NAME @ ${GITHUB_SHA:0:7})" || true
         shell: bash
 
       - name: Çıktıyı doğrula
