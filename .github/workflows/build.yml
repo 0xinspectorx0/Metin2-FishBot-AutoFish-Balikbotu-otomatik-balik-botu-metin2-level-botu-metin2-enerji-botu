@@ -176,6 +176,59 @@ jobs:
           fi
         shell: bash
 
+      # ---------------------------------------------------------------------
+      # Tanılama kanalı: logları 'ci-logs' dalına yayımla
+      #
+      # Actions log'ları Azure blob (*.blob.core.windows.net) üzerinde
+      # tutuluyor ve bazı ağlardan (ör. kapalı geliştirme ortamları)
+      # indirilemiyor. Commit/issue yorumu da bu token ile yazılamadı.
+      # Çözüm: log, api.github.com üzerinden okunabilen bir dala dosya olarak
+      # yazılır:
+      #   gh api /repos/{owner}/{repo}/contents/build-<run>.log?ref=ci-logs
+      # ---------------------------------------------------------------------
+      - name: Logları ci-logs dalına yayımla
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -uo pipefail
+          REPO="$GITHUB_REPOSITORY"
+          LOGNAME="build-$GITHUB_RUN_ID.log"
+          ERRNAME="errors-$GITHUB_RUN_ID.txt"
+
+          : > build.log.tmp
+          if [ -f build.log ]; then tail -c 400000 build.log > build.log.tmp; fi
+          : > derleme-hatalari.tmp
+          if [ -f derleme-hatalari.txt ]; then head -c 200000 derleme-hatalari.txt > derleme-hatalari.tmp; fi
+
+          if gh api "/repos/$REPO/contents/README.md?ref=ci-logs" --jq '.sha' > /dev/null 2>&1; then
+            PARENT=$(gh api "/repos/$REPO/git/refs/heads/ci-logs" --jq '.object.sha')
+            BASE=(--field "base_tree=$PARENT")
+          else
+            BASE=()
+          fi
+
+          B64LOG=$(base64 -w0 build.log.tmp)
+          B64ERR=$(base64 -w0 derleme-hatalari.tmp)
+          TREE_JSON=$(printf '{"tree":[{"path":"README.md","mode":"100644","type":"blob","content":"Bu dal CI tanılama logları için kullanılır. Kod içermez.\n"},{"path":"%s","mode":"100644","type":"blob","content":"%s"},{"path":"%s","mode":"100644","type":"blob","content":"%s"}]}' "$LOGNAME" "$B64LOG" "$ERRNAME" "$B64ERR")
+
+          TREE_SHA=$(printf '%s' "$TREE_JSON" | gh api --method POST "/repos/$REPO/git/trees" --input - --jq '.sha') || {
+            echo "Tree oluşturulamadı; log yayımlanamıyor."; exit 0;
+          }
+          # Commit gövdesi JSON olarak gönderilir: `gh api -f` alan değerlerini
+          # sayıya çevirmeye çalıştığı için sha değerleri bozulabiliyor.
+          if [ -n "${PARENT:-}" ]; then
+            COMMIT_BODY=$(printf '{"message":"ci: derleme logu — çalıştırma #%s (%s @ %s)","tree":"%s","parents":["%s"]}' "$GITHUB_RUN_ID" "$GITHUB_REF_NAME" "${GITHUB_SHA:0:7}" "$TREE_SHA" "$PARENT")
+          else
+            COMMIT_BODY=$(printf '{"message":"ci: derleme logu — çalıştırma #%s (%s @ %s)","tree":"%s","parents":[]}' "$GITHUB_RUN_ID" "$GITHUB_REF_NAME" "${GITHUB_SHA:0:7}" "$TREE_SHA")
+          fi
+          COMMIT_SHA=$(printf '%s' "$COMMIT_BODY" | gh api --method POST "/repos/$REPO/git/commits" --input - --jq '.sha')
+
+          gh api --method PATCH "/repos/$REPO/git/refs/heads/ci-logs" \
+            --field "sha=$COMMIT_SHA" --field force=true > /dev/null
+          echo "Log yayımlandı: https://github.com/$REPO/blob/ci-logs/$LOGNAME"
+        shell: bash
+
       - name: Çıktıyı doğrula
         if: success()
         run: |
