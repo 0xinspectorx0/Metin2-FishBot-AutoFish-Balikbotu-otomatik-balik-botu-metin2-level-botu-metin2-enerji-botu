@@ -34,7 +34,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write   # Release/asset olusturabilmek icin
+  issues: write     # Derleme hatasini issue yorumu olarak raporlayabilmek icin
 
 jobs:
   build:
@@ -53,7 +54,13 @@ jobs:
       - name: MSBuild sürümünü bul
         uses: microsoft/setup-msbuild@v2
 
+      # Log dosyaya yazılır: Actions log'ları Azure blob üzerinde tutulduğu için
+      # bazı ortamlardan (ör. kapalı ağ) indirilemiyor. Hataları API üzerinden
+      # okuyabilmek için özet aşağıdaki "Derleme sonucunu raporla" adımında
+      # job summary + issue yorumu olarak yayımlanır.
       - name: Derle (Release)
+        id: build
+        continue-on-error: true
         run: |
           msbuild MusicPlayerApp.sln `
             /t:Rebuild `
@@ -62,10 +69,71 @@ jobs:
             /p:DebugSymbols=false `
             /verbosity:normal `
             /consoleloggerparameters:Summary `
-            /m
+            /m 2>&1 | Tee-Object -FilePath build.log
+          $code = $LASTEXITCODE
+          "exitcode=$code" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          exit $code
         shell: pwsh
 
+      - name: Derleme sonucunu raporla
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BUILD_EXIT: ${{ steps.build.outputs.exitcode }}
+        run: |
+          set -uo pipefail
+          EXIT="${BUILD_EXIT:-1}"
+          if [ -f build.log ]; then
+            grep -iE "error (CS|MSB)[0-9]+|error :" build.log | sed 's/^[[:space:]]*//' | sort -u > derleme-hatalari.txt || true
+          else
+            : > derleme-hatalari.txt
+          fi
+          COUNT=$(wc -l < derleme-hatalari.txt | tr -d ' ')
+
+          {
+            echo "### Otomatik derleme sonucu"
+            echo
+            echo "- Çıkış kodu: \`$EXIT\` — benzersiz hata satırı: **$COUNT**"
+            echo "- Ref: \`$GITHUB_REF_NAME\`  Commit: \`$GITHUB_SHA\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$COUNT" -gt 0 ]; then
+            {
+              echo
+              echo '```'
+              head -n 60 derleme-hatalari.txt
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            # Log'lar Azure blob üzerinde tutulduğu için kapalı ağlardan
+            # indirilemeyebiliyor; hatalar bu yüzden API üzerinden okunabilen
+            # bir issue yorumu olarak da yayımlanır.
+            {
+              echo "### Otomatik derleme BAŞARISIZ :x:"
+              echo
+              echo "- Çalıştırma: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+              echo "- Ref: \`$GITHUB_REF_NAME\`  Commit: \`$GITHUB_SHA\`"
+              echo
+              echo '```'
+              head -n 40 derleme-hatalari.txt
+              echo '```'
+              echo
+              echo "> Bu yorum, \`Derleme sonucunu raporla\` adımı tarafından otomatik oluşturuldu."
+            } > yorum.md
+            gh api --method POST \
+              "/repos/$GITHUB_REPOSITORY/issues/$GITHUB_RUN_NUMBER/comments" \
+              -F body=@yorum.md > /dev/null || echo "Yorum yayımlanamadı (izin/erişim sorunu)."
+          fi
+
+          echo "$EXIT" > build-exit.txt
+          if [ "$EXIT" != "0" ]; then
+            echo "::error::Derleme başarısız (çıkış kodu $EXIT, $COUNT hata). Ayrıntı job summary'de."
+            exit 1
+          fi
+        shell: bash
+
       - name: Çıktıyı doğrula
+        if: success()
         run: |
           if (-not (Test-Path 'bin\Release\Metin2AutoFishCSharp.exe')) {
             Write-Error 'Metin2AutoFishCSharp.exe üretilmedi — derleme başarısız.'
@@ -76,6 +144,7 @@ jobs:
         shell: pwsh
 
       - name: Dağıtım klasörünü hazırla
+        if: success()
         run: |
           $stage = 'dist\Metin2AutoFishCSharp'
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
@@ -87,6 +156,7 @@ jobs:
         shell: pwsh
 
       - name: Zip oluştur
+        if: success()
         run: |
           $ver = if ($env:GITHUB_REF_NAME -like 'v*') { $env:GITHUB_REF_NAME } else { $env:GITHUB_SHA.Substring(0,7) }
           $zip = "Metin2AutoFishCSharp-$ver-win-x64.zip"
@@ -96,6 +166,18 @@ jobs:
         shell: pwsh
 
       # Etiket dışı çalıştırmalarda zip yalnızca artifact olarak saklanır.
+      - name: Derleme loglarını artifact olarak yükle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: derleme-loglari
+          path: |
+            build.log
+            derleme-hatalari.txt
+            build-exit.txt
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Zip'i artifact olarak yükle
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
         uses: actions/upload-artifact@v4

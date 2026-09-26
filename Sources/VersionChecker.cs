@@ -190,9 +190,12 @@ namespace MusicPlayerApp.Sources
 
         private static string DownloadLatestVersion()
         {
+            // NOT: TaskCompletionSource IDisposable DEGİLDİR; eski taslakta
+            // `using (TaskCompletionSource<string> ...)` yazılmıştı ve bu CS1674
+            // derleme hatası veriyordu. Yalnızca WebClient using içinde.
             using (WebClient client = new WebClient())
-            using (TaskCompletionSource<string> completion = new TaskCompletionSource<string>())
             {
+                TaskCompletionSource<string> completion = new TaskCompletionSource<string>();
                 client.Headers[HttpRequestHeader.UserAgent] = "Metin2AutoFishCSharp/" + CurrentVersion;
 
                 DownloadStringCompletedEventHandler handler = null;
