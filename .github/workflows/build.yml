@@ -196,8 +196,8 @@ jobs:
           LOGNAME="build-$GITHUB_RUN_ID.log"
           ERRNAME="errors-$GITHUB_RUN_ID.txt"
 
-          # Keep the API payload small and valid UTF-8. GitHub Actions logs are
-          # stored on Azure blob, which may be inaccessible from this environment.
+          # Actions log'ları Azure blob üzerinde olduğundan buradaki ortamdan
+          # indirilemeyebilir. Son 60 KB + hata satırlarını API ile ci-logs'a yaz.
           : > build.log.tmp
           if [ -f build.log ]; then
             tail -c 60000 build.log | iconv -c -f UTF-8 -t UTF-8 > build.log.tmp || tail -c 60000 build.log > build.log.tmp
@@ -208,19 +208,31 @@ jobs:
           fi
 
           publish_file() {
-            local path="$1" local_file="$2" message="$3" content payload response
-            content=$(base64 -w0 "$local_file")
-            payload=$(jq -n --arg message "$message" --arg content "$content" --arg branch "ci-logs"               '{message:$message, content:$content, branch:$branch}')
-            response=$(printf '%s' "$payload" | gh api --method PUT               "repos/$REPO/contents/$path" --input - 2>&1) || {
-                echo "GitHub Contents API upload failed for $path: $response"
-                echo "::error title=CI log upload failed::$path — $response"
-                return 1
-              }
+            local path="$1"
+            local local_file="$2"
+            local message="$3"
+            local response
+            base64 -w0 "$local_file" > contents-payload.b64
+            response=$(gh api --method PUT \
+              "repos/$REPO/contents/$path" \
+              --field "message=$message" \
+              --field "content=@contents-payload.b64" \
+              --field "branch=ci-logs" 2>&1) || {
+              echo "GitHub Contents API upload failed for $path: $response"
+              echo "::error title=CI log upload failed::$path — $response"
+              return 1
+            }
             echo "Published $path"
           }
 
-          publish_file "$LOGNAME" build.log.tmp             "ci: build log for run $GITHUB_RUN_ID ($GITHUB_REF_NAME @ ${GITHUB_SHA:0:7})" || true
-          publish_file "$ERRNAME" derleme-hatalari.tmp             "ci: compiler errors for run $GITHUB_RUN_ID ($GITHUB_REF_NAME @ ${GITHUB_SHA:0:7})" || true
+          if ! publish_file "$LOGNAME" build.log.tmp \
+            "ci: build log for run $GITHUB_RUN_ID ($GITHUB_REF_NAME @ ${GITHUB_SHA:0:7})"; then
+            echo "::error::Could not publish build log."
+          fi
+          if ! publish_file "$ERRNAME" derleme-hatalari.tmp \
+            "ci: compiler errors for run $GITHUB_RUN_ID ($GITHUB_REF_NAME @ ${GITHUB_SHA:0:7})"; then
+            echo "::error::Could not publish compiler errors."
+          fi
         shell: bash
 
       - name: Çıktıyı doğrula
