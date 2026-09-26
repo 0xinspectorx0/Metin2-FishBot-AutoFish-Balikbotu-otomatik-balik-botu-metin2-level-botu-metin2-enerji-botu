@@ -158,10 +158,15 @@ jobs:
               echo '```'
               echo
               echo "> Bu yorum, `Derleme sonucunu raporla` adımı tarafından otomatik oluşturuldu."
+              echo "> Tam log: Actions → ilgili çalıştırma → `derleme-loglari` artifact'i."
             } > yorum.md
+            # Not: yorum ISSUES'a değil COMMIT'e yazılır. Sebep: Actions
+            # log'ları Azure blob üzerinde tutulduğu için bazı ağlardan
+            # indirilemiyor; commit yorumu ise REST API'den doğrudan
+            # okunabiliyor (GET /repos/{owner}/{repo}/commits/{sha}/comments).
             gh api --method POST \
-              "/repos/$GITHUB_REPOSITORY/issues/$GITHUB_RUN_NUMBER/comments" \
-              -F body=@yorum.md > /dev/null || echo "Yorum yayımlanamadı (izin/erişim sorunu)."
+              "/repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/comments" \
+              -F body=@yorum.md > /dev/null || echo "Commit yorumu yayımlanamadı."
           fi
 
           echo "$EXIT" > build-exit.txt
