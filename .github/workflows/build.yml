@@ -43,8 +43,26 @@ jobs:
     runs-on: windows-2022
 
     steps:
+      # Depo adı çok uzun olduğu için Windows koşucusundaki 260 karakter yol sınırı
+      # (MAX_PATH) git ref dosyalarında aşılıyor ve checkout "Filename too long"
+      # hatasıyla başarısız oluyordu. İki önlem:
+      #   1) core.longpaths=true  (git'in uzun yol desteği)
+      #   2) sığ + tek dallı çekim (uzun remote ref adları hiç oluşturulmaz)
+      - name: Uzun yol desteğini aç (Windows MAX_PATH)
+        run: |
+          git config --system core.longpaths true 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            git config --global core.longpaths true
+          }
+          git config --system --get core.longpaths
+        shell: pwsh
+
       - name: Kaynak kodu al
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          fetch-tags: false
+          persist-credentials: false
 
       # NuGet paketleri depoda TUTULMUYOR (packages/ .gitignore içinde); geri
       # yüklenmeden derleme "dosya bulunamadı" hatası verir.
@@ -84,7 +102,9 @@ jobs:
           set -uo pipefail
           EXIT="${BUILD_EXIT:-1}"
           if [ -f build.log ]; then
-            grep -iE "error (CS|MSB)[0-9]+|error :" build.log | sed 's/^[[:space:]]*//' | sort -u > derleme-hatalari.txt || true
+            # MSBuild hem dosya bazlı (path(l,c): error CS1234) hem de özet
+            # ("      3 Error(s)") satırları üretir; ikisi de yakalanır.
+            grep -inE "error" build.log | sed 's/^[[:space:]]*//' | sort -u > derleme-hatalari.txt || true
           else
             : > derleme-hatalari.txt
           fi
@@ -93,17 +113,36 @@ jobs:
           {
             echo "### Otomatik derleme sonucu"
             echo
-            echo "- Çıkış kodu: \`$EXIT\` — benzersiz hata satırı: **$COUNT**"
-            echo "- Ref: \`$GITHUB_REF_NAME\`  Commit: \`$GITHUB_SHA\`"
+            echo "- Çıkış kodu: `$EXIT` — benzersiz hata satırı: **$COUNT**"
+            echo "- Ref: `$GITHUB_REF_NAME`  Commit: `$GITHUB_SHA`"
           } >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$COUNT" -gt 0 ]; then
             {
               echo
               echo '```'
-              head -n 60 derleme-hatalari.txt
+              head -n 80 derleme-hatalari.txt
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          # Hata deseni eşleşmese bile logun sonu özete yazılır: böylece
+          # Actions log'larına erişilemeyen ortamlardan da teşhis yapılabilir.
+          if [ -f build.log ]; then
+            {
+              echo
+              echo "<details><summary>build.log — son 80 satır</summary>"
+              echo
+              echo '```'
+              tail -n 80 build.log
+              echo '```'
+              echo
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "$COUNT" -gt 0 ]; then
+            :
 
             # Log'lar Azure blob üzerinde tutulduğu için kapalı ağlardan
             # indirilemeyebiliyor; hatalar bu yüzden API üzerinden okunabilen
@@ -112,13 +151,13 @@ jobs:
               echo "### Otomatik derleme BAŞARISIZ :x:"
               echo
               echo "- Çalıştırma: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-              echo "- Ref: \`$GITHUB_REF_NAME\`  Commit: \`$GITHUB_SHA\`"
+              echo "- Ref: `$GITHUB_REF_NAME`  Commit: `$GITHUB_SHA`"
               echo
               echo '```'
               head -n 40 derleme-hatalari.txt
               echo '```'
               echo
-              echo "> Bu yorum, \`Derleme sonucunu raporla\` adımı tarafından otomatik oluşturuldu."
+              echo "> Bu yorum, `Derleme sonucunu raporla` adımı tarafından otomatik oluşturuldu."
             } > yorum.md
             gh api --method POST \
               "/repos/$GITHUB_REPOSITORY/issues/$GITHUB_RUN_NUMBER/comments" \
