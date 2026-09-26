@@ -1,0 +1,115 @@
+# -----------------------------------------------------------------------------
+# Otomatik derleme (CI)
+#
+# Neden var?
+#   Proje .NET Framework 4.7.2 hedefleyen, Windows'a özgü P/Invoke kullanan bir
+#   WinForms uygulaması. Bu yüzden Linux/macOS üzerinde DERLENEMEZ. Bakım turu
+#   sırasında geliştirme ortamında msbuild/dotnet/mono kurulamadığı için kod
+#   derlenerek doğrulanamadı; bu iş akışı o boşluğu kapatır:
+#   GitHub'ın Windows koşucusunda gerçek bir MSBuild derlemesi yapar ve
+#   çalıştırılabilir çıktıyı (exe + dll + tüm içerik klasörleri) zip olarak sunar.
+#
+# Ne zaman çalışır?
+#   * v* biçimindeki bir etiket push edildiğinde (ör. v1.0.4)
+#     → Release oluşturur ve zip'i asset olarak ekler.
+#   * main veya arena/* dallarına push edildiğinde ve Pull Request'lerde
+#     → yalnızca derleme doğrulaması (zip artifact olarak saklanır).
+#   * Elle: depo sayfası → Actions → "Derle ve paketle" → "Run workflow".
+#
+# Not: Depo ayarlarında Actions kapalıysa bu iş akışı çalışmaz.
+#      Ayarlar → Actions → General → "Allow all actions and workflows".
+# -----------------------------------------------------------------------------
+name: Derle ve paketle
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+      - 'arena/**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: MSBuild (Release, x86/AnyCPU)
+    runs-on: windows-2022
+
+    steps:
+      - name: Kaynak kodu al
+        uses: actions/checkout@v4
+
+      # NuGet paketleri depoda TUTULMUYOR (packages/ .gitignore içinde); geri
+      # yüklenmeden derleme "dosya bulunamadı" hatası verir.
+      - name: NuGet paketlerini geri yükle
+        run: nuget restore MusicPlayerApp.sln -Verbosity detailed
+
+      - name: MSBuild sürümünü bul
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Derle (Release)
+        run: |
+          msbuild MusicPlayerApp.sln `
+            /t:Rebuild `
+            /p:Configuration=Release `
+            /p:Platform="Any CPU" `
+            /p:DebugSymbols=false `
+            /verbosity:normal `
+            /consoleloggerparameters:Summary `
+            /m
+        shell: pwsh
+
+      - name: Çıktıyı doğrula
+        run: |
+          if (-not (Test-Path 'bin\Release\Metin2AutoFishCSharp.exe')) {
+            Write-Error 'Metin2AutoFishCSharp.exe üretilmedi — derleme başarısız.'
+            exit 1
+          }
+          Write-Host 'Çıktı listesi:'
+          Get-ChildItem -Recurse bin\Release | Select-Object -ExpandProperty FullName
+        shell: pwsh
+
+      - name: Dağıtım klasörünü hazırla
+        run: |
+          $stage = 'dist\Metin2AutoFishCSharp'
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          # exe + dll + exe.config + manifest
+          Copy-Item 'bin\Release\*' $stage -Recurse -Force
+          # pdb/xml dokümantasyon dosyaları dağıtımda gereksiz
+          Get-ChildItem -Recurse $stage -Include *.pdb,*.xml | Remove-Item -Force
+          Write-Host "Hazırlanan klasör: $stage"
+        shell: pwsh
+
+      - name: Zip oluştur
+        run: |
+          $ver = if ($env:GITHUB_REF_NAME -like 'v*') { $env:GITHUB_REF_NAME } else { $env:GITHUB_SHA.Substring(0,7) }
+          $zip = "Metin2AutoFishCSharp-$ver-win-x64.zip"
+          Compress-Archive -Path 'dist\Metin2AutoFishCSharp\*' -DestinationPath $zip -CompressionLevel Optimal
+          "ZIP_ADI=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Oluşturulan paket: $zip"
+        shell: pwsh
+
+      # Etiket dışı çalıştırmalarda zip yalnızca artifact olarak saklanır.
+      - name: Zip'i artifact olarak yükle
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Metin2AutoFishCSharp-derleme
+          path: ${{ env.ZIP_ADI }}
+          if-no-files-found: error
+          retention-days: 30
+
+      # Etiket push edildiğinde doğrudan Release yayımlanır.
+      - name: Release yayımla (yalnızca etiketlerde)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ZIP_ADI }}
+          generate_release_notes: false
+          fail_on_unmatched_files: true

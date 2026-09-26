@@ -47,6 +47,22 @@ Telegram hariç; harf/sayı tespiti, nesne tespiti vb. algoritmaların hepsi pro
 | RAM | Başka program çalışmıyorsa 2 GB yeterli |
 | Çözünürlük/ölçeklendirme | Oyun penceresi 800x600; Windows ölçeklendirme (DPI) fark etmez — program `PerMonitorV2` DPI bildirimiyle derlenir |
 
+### Hazır exe'yi nereden alırım? (otomatik derleme)
+
+Depoya `.github/workflows/build.yml` eklendi. Bu iş akışı GitHub'ın **Windows**
+koşucusunda gerçek bir MSBuild derlemesi yapar:
+
+* `v*` biçiminde bir etiket push edildiğinde → **Release** oluşturur ve
+  `Metin2AutoFishCSharp-vX.Y.Z-win-x64.zip` dosyasını (exe + dll + `Images/`,
+  `Fishes/`, `ChatResources/` … içerik klasörleri) asset olarak ekler.
+* `main` / `arena/**` dallarına push ve PR'larda → derlemeyi doğrular, zip'i
+  **artifact** olarak saklar (Actions sayfasından indirilebilir).
+* Elle de çalıştırılabilir: depo → **Actions** → *Derle ve paketle* → **Run workflow**.
+
+> [!NOTE]
+> Depo ayarlarında Actions kapalıysa iş akışı çalışmaz:
+> **Settings → Actions → General → "Allow all actions and workflows"**.
+
 ### Geliştirici olarak derleme
 
 ```powershell
