@@ -302,15 +302,25 @@ namespace MusicPlayerApp
             buttonEnergyStart.Enabled = false;
             buttonResetSettings.Enabled = false;
             buttonGrillFish.Enabled = false;
-            labelStartStatus.Text = "Balıklar pişiriliyor… (Ctrl+O ile durdurabilirsiniz)";
+            labelStartStatus.Text = "Pişirme 5 saniye içinde başlayacak… (Ctrl+O ile durdurabilirsiniz)";
 
             Task.Run(() =>
             {
                 string result = "Balık pişirme işlemi tamamlanamadı.";
                 try
                 {
-                    PrepareFishing prepareFishing = new PrepareFishing(imageObjects);
-                    prepareFishing.GrillAllFishOnly(out result);
+                    // Başlangıç beklemesi duraklatmaya duyarlıdır; bu sırada Ctrl+O
+                    // gelirse oyun üzerinde hiçbir işlem yapılmadan görev sonlandırılır.
+                    TimerGame.SleepActiveTime(5000);
+                    if (ThreadGlobals.isFishingStopped)
+                    {
+                        result = "Balık pişirme işlemi durduruldu.";
+                    }
+                    else
+                    {
+                        PrepareFishing prepareFishing = new PrepareFishing(imageObjects);
+                        prepareFishing.GrillAllFishOnly(out result);
+                    }
                 }
                 catch (Exception ex)
                 {
