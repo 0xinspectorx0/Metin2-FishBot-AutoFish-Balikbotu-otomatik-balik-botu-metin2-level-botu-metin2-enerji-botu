@@ -41,6 +41,9 @@ namespace MusicPlayerApp.Sources.ImageHandle
         public static readonly string yabbieIconFileName = "yabbieIcon.png";
         public static readonly string kurbagaIconFileName = "kurbagaIcon.png";
         public static readonly string kadifeIconFileName = "kadifeIcon.png";
+        public static readonly string hamsiIconFileName = "HamsiIcon.png";
+        public static readonly string zarganaIconFileName = "ZarganaIcon.png";
+        public static readonly string kralYengeciIconFileName = "kralYengeci.png";
         public static readonly string gameForgeOynaFileName = "gameForgeOyna.png";
         public static readonly string gForgeAppIconFileName = "gForgeAppIcon.png";
         public static readonly string gForgeOynaDownFileName = "gForgeOynaDown.png";

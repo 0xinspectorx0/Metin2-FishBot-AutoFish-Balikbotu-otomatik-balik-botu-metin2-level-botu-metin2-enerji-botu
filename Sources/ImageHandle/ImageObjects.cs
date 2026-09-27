@@ -75,6 +75,9 @@ namespace MusicPlayerApp.Sources.ImageHandle
         public int[] arrayPalamutIcon { get; private set; }
         public int[] arrayKurbagaIcon { get; private set; }
         public int[] arrayKadifeIcon { get; private set; }
+        public int[] arrayHamsiIcon { get; private set; }
+        public int[] arrayZarganaIcon { get; private set; }
+        public int[] arrayKralYengeciIcon { get; private set; }
         public int[] arrayFisherWords { get; private set; }
         public int[] arrayKampAtesiWords { get; private set; }
         public int[] arrayGameForgeOyna {  get; private set; }
@@ -197,6 +200,9 @@ namespace MusicPlayerApp.Sources.ImageHandle
             arrayPalamutIcon = convertBitMapToIntArray(ImagePathNames.palamutIconFileName, PathWayStruct.PATH_FISHES);
             arrayKurbagaIcon = convertBitMapToIntArray(ImagePathNames.kurbagaIconFileName, PathWayStruct.PATH_FISHES);
             arrayKadifeIcon = convertBitMapToIntArray(ImagePathNames.kadifeIconFileName, PathWayStruct.PATH_FISHES);
+            arrayHamsiIcon = convertBitMapToIntArray(ImagePathNames.hamsiIconFileName, PathWayStruct.PATH_FISHES);
+            arrayZarganaIcon = convertBitMapToIntArray(ImagePathNames.zarganaIconFileName, PathWayStruct.PATH_FISHES);
+            arrayKralYengeciIcon = convertBitMapToIntArray(ImagePathNames.kralYengeciIconFileName, PathWayStruct.PATH_FISHES);
 
             //@@@@@@@@@@@@@@@@@@@@  ONE COLOR ARRAYS  @@@@@@@@@@@@@@@@@@@@@@@
 

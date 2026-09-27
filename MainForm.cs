@@ -46,6 +46,7 @@ namespace MusicPlayerApp
         /// <summary>checkBoxTelegram.Checked programatik olarak değiştirilirken olayın
         /// yeniden tetiklenmesini engeller.</summary>
         private bool isTelegramCheckChanging;
+        private volatile bool isManualGrillActionActive;
         //ChatHandlerForm chatHandlerForm;
 
 
@@ -154,6 +155,14 @@ namespace MusicPlayerApp
 
         private void StopBotFromHotkey()
         {
+            if (isManualGrillActionActive && !ThreadGlobals.isBotPaused)
+            {
+                ThreadGlobals.isFishingStopped = true;
+                labelStartStatus.Text = "Ctrl+O ile durduruldu";
+                threadsHandler.Stop();
+                return;
+            }
+
             if (ThreadGlobals.isBotPaused)
             {
                 bool wasFishingActive = ThreadGlobals.WasFishingActiveBeforePause;
@@ -196,10 +205,17 @@ namespace MusicPlayerApp
                 if (!ThreadGlobals.ResumeBot()) return;
 
                 TimerGame.ResumeBotTimers();
-                buttonFishingStart.Enabled = true;
-                buttonLevelStart.Enabled = true;
-                buttonEnergyStart.Enabled = true;
-                if (resumeFishing)
+                bool canStartOtherActions = !isManualGrillActionActive;
+                buttonFishingStart.Enabled = canStartOtherActions;
+                buttonLevelStart.Enabled = canStartOtherActions;
+                buttonEnergyStart.Enabled = canStartOtherActions;
+                buttonResetSettings.Enabled = canStartOtherActions;
+                buttonGrillFish.Enabled = canStartOtherActions;
+                if (isManualGrillActionActive)
+                {
+                    labelStartStatus.Text = "Ctrl+P ile pişirmeye devam edildi";
+                }
+                else if (resumeFishing)
                 {
                     buttonFishingStart.Text = "DURDUR";
                     labelStartStatus.Text = "Ctrl+P ile devam edildi";
@@ -224,7 +240,10 @@ namespace MusicPlayerApp
             buttonFishingStart.Enabled = false;
             buttonLevelStart.Enabled = false;
             buttonEnergyStart.Enabled = false;
-            if (ThreadGlobals.WasFishingActiveBeforePause) labelStartStatus.Text = "Ctrl+P ile duraklatıldı";
+            buttonResetSettings.Enabled = false;
+            buttonGrillFish.Enabled = false;
+            if (isManualGrillActionActive) labelStartStatus.Text = "Pişirme Ctrl+P ile duraklatıldı";
+            else if (ThreadGlobals.WasFishingActiveBeforePause) labelStartStatus.Text = "Ctrl+P ile duraklatıldı";
             if (ThreadGlobals.WasLevelFarmActiveBeforePause) labelLevelFarmStatus.Text = "Ctrl+P ile duraklatıldı";
             if (ThreadGlobals.WasEnergyActiveBeforePause) labelEnergyCristal.Text = "Ctrl+P ile duraklatıldı";
             FileLogger.Info("Bot Ctrl+P ile duraklatıldı");
@@ -263,6 +282,73 @@ namespace MusicPlayerApp
                 MessageBox.Show("Enerji Kristali Aktifken Balıkçılığı Başlatamazsın", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
 
             }
+        }
+
+        private void buttonGrillFish_Click(object sender, EventArgs e)
+        {
+            if (isManualGrillActionActive || ThreadGlobals.isBotPaused ||
+                !ThreadGlobals.isFishingStopped || !ThreadGlobals.isLevelFarmStopped ||
+                !ThreadGlobals.isEnergyCristalStopped || ThreadGlobals.IsAnyThreadActive())
+            {
+                MessageBox.Show("Balıkları pişirmek için önce tüm bot işlemlerini durdurun.",
+                    "İşlem başlatılamadı", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            isManualGrillActionActive = true;
+            ThreadGlobals.isFishingStopped = false;
+            buttonFishingStart.Enabled = false;
+            buttonLevelStart.Enabled = false;
+            buttonEnergyStart.Enabled = false;
+            buttonResetSettings.Enabled = false;
+            buttonGrillFish.Enabled = false;
+            labelStartStatus.Text = "Balıklar pişiriliyor… (Ctrl+O ile durdurabilirsiniz)";
+
+            Task.Run(() =>
+            {
+                string result = "Balık pişirme işlemi tamamlanamadı.";
+                try
+                {
+                    PrepareFishing prepareFishing = new PrepareFishing(imageObjects);
+                    prepareFishing.GrillAllFishOnly(out result);
+                }
+                catch (Exception ex)
+                {
+                    FileLogger.Error("Tek seferlik balık pişirme işlemi başlatılamadı", ex);
+                    result = "Balık pişirme hatası: " + ex.Message;
+                }
+                finally
+                {
+                    ThreadGlobals.isFishingStopped = true;
+                    ThreadGlobals.isPrepareFishingStarted = false;
+                }
+
+                try
+                {
+                    if (!IsDisposed && IsHandleCreated)
+                    {
+                        BeginInvoke((Action)(() =>
+                        {
+                            isManualGrillActionActive = false;
+                            buttonFishingStart.Text = "BAŞLAT";
+                            buttonFishingStart.Enabled = true;
+                            buttonLevelStart.Enabled = true;
+                            buttonEnergyStart.Enabled = true;
+                            buttonResetSettings.Enabled = true;
+                            buttonGrillFish.Enabled = true;
+                            labelStartStatus.Text = result;
+                        }));
+                    }
+                    else
+                    {
+                        isManualGrillActionActive = false;
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    isManualGrillActionActive = false;
+                }
+            });
         }
 
         private void buttonLevelStart_Click(object sender, EventArgs e)

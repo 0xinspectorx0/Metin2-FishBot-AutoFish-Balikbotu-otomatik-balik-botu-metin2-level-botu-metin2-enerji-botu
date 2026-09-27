@@ -41,6 +41,10 @@ namespace MusicPlayerApp.Sources.GameHandler
         private const int MAX_FISHER_SEARCH_DEPTH = 6;
 
         private bool isGrillFishesFailed = false;
+        private bool isStandaloneGrillAction;
+        private Stopwatch standaloneGrillStopwatch;
+        private bool standaloneGrillTimedOut;
+        private const int MAX_STANDALONE_GRILL_SECONDS = 240;
 
         List<Rectangle> listWorm200;
 
@@ -74,6 +78,133 @@ namespace MusicPlayerApp.Sources.GameHandler
             ThreadGlobals.isPrepareFishingStarted = false;
         }
 
+        /// <summary>
+        /// Envanterde tespit edilebilen tüm balıkları yalnızca bir kez kızartır.
+        /// Balık tutma hazırlığının devamındaki yem alma adımını özellikle çağırmaz.
+        /// </summary>
+        public bool GrillAllFishOnly(out string result)
+        {
+            result = "Balık pişirme işlemi tamamlanamadı.";
+
+            if (ThreadGlobals.isFishingStopped || ThreadGlobals.isBotPaused ||
+                !ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isEnergyCristalStopped ||
+                ThreadGlobals.IsAnyThreadActive())
+            {
+                result = "Önce çalışan bot işlemlerini durdurun.";
+                return false;
+            }
+
+            int[] settingButtonImage = screenShot.ImageArraySpecifiedArea(coordinate.RectSettingButton());
+            if (!imageObjects.CompareTwoArrayAdvanced(imageObjects.arraySettingButton,
+                settingButtonImage, ImageSensibilityLevel.SENSIBILTY_MED))
+            {
+                result = "Metin2 karakter ekranı açık olmalı.";
+                return false;
+            }
+
+            bool previousSettingButtonState = ThreadGlobals.isSettingButtonSeemed;
+            bool previousHepsiSelectedState = ThreadGlobals.isHepsiSelected;
+            isStandaloneGrillAction = true;
+            standaloneGrillTimedOut = false;
+            standaloneGrillStopwatch = Stopwatch.StartNew();
+            ThreadGlobals.isFishingStopped = false;
+            ThreadGlobals.isSettingButtonSeemed = true;
+            ThreadGlobals.isHepsiSelected = false;
+            ThreadGlobals.isPrepareFishingStarted = true;
+
+            try
+            {
+                List<Rectangle[]> fishCoordinatesPageOne = new List<Rectangle[]>();
+                List<Rectangle[]> fishCoordinatesPageTwo = new List<Rectangle[]>();
+                List<int[]> allFishIcons = GetAllFishTypesForGrilling();
+
+                charThings.OpenCloseInventory(true);
+                foreach (int[] fishIcon in allFishIcons)
+                {
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                    {
+                        result = "Balık pişirme işlemi durduruldu.";
+                        return false;
+                    }
+
+                    fishCoordinatesPageOne.Add(charThings.CheckObjectInventory(fishIcon,
+                        coordinate.RectItemSlotSizeSample(), InventoryPage.Page_1));
+                    fishCoordinatesPageTwo.Add(charThings.CheckObjectInventory(fishIcon,
+                        coordinate.RectItemSlotSizeSample(), InventoryPage.Page_2));
+                }
+                charThings.OpenCloseInventory(false);
+
+                int fishCount = CountTotalFish(fishCoordinatesPageOne) +
+                    CountTotalFish(fishCoordinatesPageTwo);
+                if (fishCount == 0)
+                {
+                    result = "Envanterde tanınan balık bulunamadı.";
+                    return false;
+                }
+
+                // Balıkçı dükkânı zaten açıksa tekrar aramaya çıkma.
+                if (!CheckFisherShopPage())
+                {
+                    FindFisher();
+                }
+
+                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                {
+                    result = "Balık pişirme işlemi durduruldu.";
+                    return false;
+                }
+                if (standaloneGrillTimedOut || !CheckFisherShopPage())
+                {
+                    result = standaloneGrillTimedOut
+                        ? "Balıkçı araması zaman aşımına uğradı."
+                        : "Balıkçı dükkânı açılamadı.";
+                    return false;
+                }
+
+                BuyKampAtasiFromFisher();
+                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                {
+                    result = "Balık pişirme işlemi durduruldu.";
+                    return false;
+                }
+
+                Rectangle campfire = FireKampAtesi();
+                if (campfire == Rectangle.Empty)
+                {
+                    result = "Kamp ateşi hazırlanamadı; işlem durduruldu.";
+                    return false;
+                }
+
+                bool completed = RetryGrillUntilDone(fishCoordinatesPageOne.ToArray(),
+                    fishCoordinatesPageTwo.ToArray(), campfire);
+                result = completed
+                    ? "Envanterde tanınan tüm balıklar pişirildi."
+                    : (ThreadGlobals.isFishingStopped
+                        ? "Balık pişirme işlemi durduruldu."
+                        : "Balıkların tamamı pişirilemedi; başka işlem başlatılmadı.");
+                return completed;
+            }
+            catch (Exception ex)
+            {
+                FileLogger.Error("Tek seferlik balık pişirme işlemi başarısız oldu", ex);
+                result = "Balık pişirme sırasında hata oluştu: " + ex.Message;
+                return false;
+            }
+            finally
+            {
+                bool wasStoppedByUser = ThreadGlobals.isFishingStopped;
+                ThreadGlobals.isFishingStopped = true;
+                if (!wasStoppedByUser)
+                {
+                    ThreadGlobals.isSettingButtonSeemed = previousSettingButtonState;
+                    ThreadGlobals.isHepsiSelected = previousHepsiSelectedState;
+                }
+                ThreadGlobals.isPrepareFishingStarted = false;
+                isStandaloneGrillAction = false;
+                standaloneGrillStopwatch = null;
+            }
+        }
+
         private void FindFisher()
         {
             TimerGame timeGame = new TimerGame();
@@ -95,6 +226,12 @@ namespace MusicPlayerApp.Sources.GameHandler
                 if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
                 {
                     ThreadGlobals.DebugThreadGloablValues();
+                    return;
+                }
+                if (isStandaloneGrillAction && standaloneGrillStopwatch != null &&
+                    standaloneGrillStopwatch.Elapsed.TotalSeconds >= MAX_STANDALONE_GRILL_SECONDS)
+                {
+                    standaloneGrillTimedOut = true;
                     return;
                 }
                     
@@ -543,22 +680,23 @@ namespace MusicPlayerApp.Sources.GameHandler
         /// dönüyordu. Artık deneme sayısı sınırlı ve her turda botun durdurulup
         /// durdurulmadığı kontrol ediliyor.
         /// </remarks>
-        private void RetryGrillUntilDone(Rectangle[][] pageOne, Rectangle[][] pageTwo, Rectangle kampAtesiGreen)
+        private bool RetryGrillUntilDone(Rectangle[][] pageOne, Rectangle[][] pageTwo, Rectangle kampAtesiGreen)
         {
             for (int attempt = 0; attempt < MAX_GRILL_RETRY; attempt++)
             {
-                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return;
+                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled || standaloneGrillTimedOut)
+                    return false;
 
                 if (GrillFishes(pageOne, pageTwo, kampAtesiGreen))
                 {
-                    return;
+                    return true;
                 }
 
                 DebugPfCnsl.println("Kızartma tamamlanamadı, kamp ateşi yenileniyor (deneme " + (attempt + 1) + ")");
 
                 if (!CheckFisherIsThere())
                 {
-                    return;
+                    return false;
                 }
                 if (!CheckFisherShopPage())
                 {
@@ -574,6 +712,7 @@ namespace MusicPlayerApp.Sources.GameHandler
             }
 
             FileLogger.Warning("Kızartma " + MAX_GRILL_RETRY + " denemede tamamlanamadı, işleme devam ediliyor");
+            return false;
         }
 
         /// <summary>Bir sayfadaki tüm balık türlerinin toplam adetini sayar.</summary>
@@ -855,6 +994,22 @@ namespace MusicPlayerApp.Sources.GameHandler
             // if (ThreadGlobals.isDenizkizSelected) fishTypes.Add(imageObjects.arrayDenizkizIcon);
 
             return fishTypes;
+        }
+
+        /// <summary>Envanter ikonu bulunan bütün balık türleri.</summary>
+        private List<int[]> GetAllFishTypesForGrilling()
+        {
+            return new List<int[]>
+            {
+                imageObjects.arrayYabbieIcon,
+                imageObjects.arrayAltinSudakIcon,
+                imageObjects.arrayPalamutIcon,
+                imageObjects.arrayKurbagaIcon,
+                imageObjects.arrayKadifeIcon,
+                imageObjects.arrayHamsiIcon,
+                imageObjects.arrayZarganaIcon,
+                imageObjects.arrayKralYengeciIcon
+            };
         }
 
         public void GoToFishPlace()
