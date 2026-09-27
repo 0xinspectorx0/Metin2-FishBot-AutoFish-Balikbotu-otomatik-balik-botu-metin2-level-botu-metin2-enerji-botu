@@ -20,6 +20,7 @@ namespace MusicPlayerApp.Sources.ImageHandle
         public static readonly string niteServerFileName = "niteServer.png";
         public static readonly string niteServerSelectedFileName = "niteServerSelected.png";
         public static readonly string channelUnknownFileName = "channelUnknown.png";
+        public static readonly string tamamButtonFileName = "tmm.png";
         public static readonly string firstSkillEmptyFileName = "firstSkillSlotEmpty.png";
         public static readonly string fullEnvanterFileName = "fullEnvanter.png";
         public static readonly string kampIconFileName = "kampIcon.png";

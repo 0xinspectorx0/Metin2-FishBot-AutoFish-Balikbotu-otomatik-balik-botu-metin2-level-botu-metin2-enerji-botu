@@ -496,6 +496,13 @@ namespace MusicPlayerApp.Sources
             return new Point(535+ currentMetin2Icon.X, 516 + currentMetin2Icon.Y);
         }
 
+        /// <summary>Tamam butonu PNG şablonunun aranacağı alan.</summary>
+        public Rectangle RectOkButtonSearchArea()
+        {
+            Point point = PointOkButton();
+            return new Rectangle(point.X - 90, point.Y - 35, 180, 70);
+        }
+
         public Point PointExitButton()
         {
             Point currentMetin2Icon = CheckGameScreenPlace();
