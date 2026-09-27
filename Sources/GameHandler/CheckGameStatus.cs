@@ -295,11 +295,11 @@ namespace MusicPlayerApp.Sources.GameHandler
                     {
                         // Kanal listesi Dolu/Kalabalık ise Nite'yi yeniden seçerek listeyi
                         // yenile; yarım saniye sonra rastgele bir CH'yi ve Tamam'ı dene.
-                        int selectedChannel = ReselectNiteAndTryRandomChannel();
-                        if (selectedChannel > 0)
+                        int refreshedChannel = ReselectNiteAndTryRandomChannel();
+                        if (refreshedChannel > 0)
                         {
-                            TimerGame connectionTimer = new TimerGame();
-                            while (connectionTimer.CheckDelayTimeInSecond(
+                            TimerGame refreshConnectionTimer = new TimerGame();
+                            while (refreshConnectionTimer.CheckDelayTimeInSecond(
                                     ENTRY_CHANNEL_CONNECT_TIMEOUT_SECONDS) && IsEntryScreenVisible())
                             {
                                 if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
