@@ -26,6 +26,7 @@ namespace MusicPlayerApp.Sources
 
         public void KeyDown(ScanCodeShort keyCode)
         {
+            ThreadGlobals.WaitWhileBotPaused();
             INPUT[] Inputs = new INPUT[1];
             INPUT Input = new INPUT();
             Input.type = 1; // 1 = Keyboard Input
@@ -50,10 +51,11 @@ namespace MusicPlayerApp.Sources
 
         public void KeyPress(ScanCodeShort keyCode)
         {
+            ThreadGlobals.WaitWhileBotPaused();
             KeyDown(keyCode);
             Thread.Sleep(TimerGame.MakeRandomValue(40, 60));
             KeyRelease(keyCode);
-            Thread.Sleep(TimerGame.MakeRandomValue(30, 50));
+            TimerGame.SleepActiveTime(TimerGame.MakeRandomValue(30, 50));
 
         }
 

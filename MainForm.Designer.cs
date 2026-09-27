@@ -25,6 +25,7 @@ namespace MusicPlayerApp
             }
             // Hotkey'i unregister yap
             UnregisterHotKey(this.Handle, MY_HOTKEY_ID);
+            UnregisterHotKey(this.Handle, MY_PAUSE_HOTKEY_ID);
             base.Dispose(disposing);
         }
 

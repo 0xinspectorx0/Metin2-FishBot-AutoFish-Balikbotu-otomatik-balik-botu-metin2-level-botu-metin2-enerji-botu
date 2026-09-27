@@ -208,7 +208,7 @@ namespace MusicPlayerApp.Sources
         private void TotalCountdownWatcherTick(object state)
         {
             int generation = (int)state;
-            if (!isBotRunActive || !ThreadGlobals.isTimerBreakEnabled ||
+            if (!isBotRunActive || ThreadGlobals.isBotPaused || !ThreadGlobals.isTimerBreakEnabled ||
                 generation != Volatile.Read(ref totalCountdownGeneration) ||
                 !TimerGame.IsTotalCountdownExpired())
             {
@@ -220,7 +220,8 @@ namespace MusicPlayerApp.Sources
 
         private void HandleTotalTimeExpired(int generation)
         {
-            if (!isBotRunActive || generation != Volatile.Read(ref totalCountdownGeneration) ||
+            if (ThreadGlobals.isBotPaused || !isBotRunActive ||
+                generation != Volatile.Read(ref totalCountdownGeneration) ||
                 Interlocked.CompareExchange(ref totalTimeExpiryHandled, 1, 0) != 0)
             {
                 return;
@@ -329,6 +330,12 @@ namespace MusicPlayerApp.Sources
 
                 while (ThreadGlobals.IsThreadOneActive)
                 {
+                    if (ThreadGlobals.isBotPaused)
+                    {
+                        Thread.Sleep(IDLE_SLEEP_MILLISECONDS);
+                        continue;
+                    }
+
                     // T1 hızlı bir ek kontrol yapar; asıl süre denetçisi ayrı watcher'dır.
                     if (ThreadGlobals.isTimerBreakEnabled && TimerGame.IsTotalCountdownExpired())
                     {
@@ -370,7 +377,10 @@ namespace MusicPlayerApp.Sources
             {
                 while (ThreadGlobals.IsThreadTwoActive)
                 {
-                    gameStatus.StartCheckingGame();
+                    if (!ThreadGlobals.isBotPaused)
+                    {
+                        gameStatus.StartCheckingGame();
+                    }
 
                     // Boş döngü yerine kısa uyku: CPU kullanımını düşürür, durdurma
                     // isteğinin fark edilmesini sağlar.
@@ -392,6 +402,12 @@ namespace MusicPlayerApp.Sources
             {
                 while (ThreadGlobals.IsThreadThreeActive)
                 {
+                    if (ThreadGlobals.isBotPaused)
+                    {
+                        Thread.Sleep(THREAD_POLL_INTERVAL_MILLISECONDS);
+                        continue;
+                    }
+
                     if (!ThreadGlobals.isFishingStopped)
                     {
                         HandleFishingSideTasks();
@@ -418,7 +434,7 @@ namespace MusicPlayerApp.Sources
         /// <summary>Balık tutarken gelen ticaret tekliflerini ve sohbet/fısıltı cevaplarını yönetir.</summary>
         private void HandleFishingSideTasks()
         {
-            if (!ThreadGlobals.isSettingButtonSeemed)
+            if (ThreadGlobals.isBotPaused || !ThreadGlobals.isSettingButtonSeemed)
             {
                 return;
             }
@@ -426,6 +442,7 @@ namespace MusicPlayerApp.Sources
             if (charThings.CheckTradePanelActive())
             {
                 TimerGame.SleepRandom(2000, 4000);
+                if (ThreadGlobals.isBotPaused) return;
                 charThings.CloseTradePanel();
                 chatting.ChatForTrade();
             }
@@ -435,12 +452,14 @@ namespace MusicPlayerApp.Sources
                 return;
             }
 
+            if (ThreadGlobals.isBotPaused) return;
+
             if (ThreadGlobals.isWhisperAnswerActive && chatting.whispers.CheckHasAnyWhisper())
             {
                 chatting.whispers.StartWhisperHandling();
             }
 
-            if (ThreadGlobals.isChattingAnswerActive &&
+            if (!ThreadGlobals.isBotPaused && ThreadGlobals.isChattingAnswerActive &&
                 (playersHandle.DetectAnotherPlayersMiniMap() || playersHandle.DetectAnotherPlayer()))
             {
                 chatting.ChatStart();
@@ -450,7 +469,7 @@ namespace MusicPlayerApp.Sources
         /// <summary>Level/farm sırasında statü dağıtımı, ticaret paneli ve ETP toplamayı yönetir.</summary>
         private void HandleLevelFarmSideTasks()
         {
-            if (!ThreadGlobals.isSettingButtonSeemed)
+            if (ThreadGlobals.isBotPaused || !ThreadGlobals.isSettingButtonSeemed)
             {
                 return;
             }
@@ -461,9 +480,11 @@ namespace MusicPlayerApp.Sources
                 {
                     DebugPfCnsl.println("Birisi ticaret teklifi gönderdi, panel kapatılıyor");
                     TimerGame.SleepRandom(2000, 4000);
+                    if (ThreadGlobals.isBotPaused) return;
                     charThings.CloseTradePanel();
                 }
 
+                if (ThreadGlobals.isBotPaused) return;
                 if (statusHandler.CheckStatusImproveTitle())
                 {
                     statusHandler.StartStatusHandle();
@@ -475,18 +496,23 @@ namespace MusicPlayerApp.Sources
                 }
             }
 
-            charPickUp.PickUpWantedItem("ejderha taşı");
+            if (!ThreadGlobals.isBotPaused)
+            {
+                charPickUp.PickUpWantedItem("ejderha taşı");
+            }
         }
 
         /// <summary>Enerji kristali döngüsünde gelen ticaret tekliflerini kapatır.</summary>
         private void HandleEnergySideTasks()
         {
+            if (ThreadGlobals.isBotPaused) return;
             if (!timeEnergyBot.CheckDelayTimeInSecond(3))
             {
                 if (charThings.CheckTradePanelActive())
                 {
                     DebugPfCnsl.println("Birisi ticaret teklifi gönderdi, panel kapatılıyor");
                     TimerGame.SleepRandom(700, 1400);
+                    if (ThreadGlobals.isBotPaused) return;
                     charThings.CloseTradePanel();
                 }
                 timeEnergyBot.SetStartedSecondTime();
@@ -668,7 +694,7 @@ namespace MusicPlayerApp.Sources
                     return;
                 }
                 HandleFormElement(statusLabel, botName + " " + remaining + " saniye içinde başlıyor");
-                Thread.Sleep(1000);
+                TimerGame.SleepActiveTime(1000);
             }
 
             HandleFormElement(statusLabel, botName + " başlatıldı");

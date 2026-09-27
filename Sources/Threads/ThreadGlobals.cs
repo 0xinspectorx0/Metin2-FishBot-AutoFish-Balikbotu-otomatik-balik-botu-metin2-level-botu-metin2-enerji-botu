@@ -36,6 +36,7 @@ namespace MusicPlayerApp.Sources
         public static volatile bool isMetin2IconSeemed = true;
         public static volatile bool isChatting = false;
         public static volatile bool isPausedTheGame = false;
+        public static volatile bool isBotPaused = false;
         public static volatile bool isCharStopped = false;
         public static volatile bool isEnemyDetected = false;
         public static volatile bool isTradePanelActive = false;
@@ -214,7 +215,88 @@ namespace MusicPlayerApp.Sources
 
         #endregion
 
+        #region Manuel duraklatma
+
+        private static readonly object botPauseLock = new object();
+        private static bool resumeFishingAfterPause;
+        private static bool resumeLevelFarmAfterPause;
+        private static bool resumeEnergyAfterPause;
+
+        public static bool WasFishingActiveBeforePause
+        {
+            get { lock (botPauseLock) return resumeFishingAfterPause; }
+        }
+
+        public static bool WasLevelFarmActiveBeforePause
+        {
+            get { lock (botPauseLock) return resumeLevelFarmAfterPause; }
+        }
+
+        public static bool WasEnergyActiveBeforePause
+        {
+            get { lock (botPauseLock) return resumeEnergyAfterPause; }
+        }
+
+        /// <summary>Etkin bot modunu koruyarak bütün otomatik işlemleri duraklatır.</summary>
+        public static bool PauseBot()
+        {
+            lock (botPauseLock)
+            {
+                if (isBotPaused) return false;
+
+                resumeFishingAfterPause = !isFishingStopped;
+                resumeLevelFarmAfterPause = !isLevelFarmStopped;
+                resumeEnergyAfterPause = !isEnergyCristalStopped;
+                if (!resumeFishingAfterPause && !resumeLevelFarmAfterPause && !resumeEnergyAfterPause)
+                {
+                    return false;
+                }
+
+                // Mod bayraklarına dokunmuyoruz; böylece etkin görev ve sayaçlar
+                // Ctrl+P ile devam ederken yeniden başlatılmak zorunda kalmaz.
+                isBotPaused = true;
+                return true;
+            }
+        }
+
+        /// <summary>Duraklatılan bot modunu kaldığı yerden sürdürür.</summary>
+        public static bool ResumeBot()
+        {
+            lock (botPauseLock)
+            {
+                if (!isBotPaused) return false;
+
+                resumeFishingAfterPause = false;
+                resumeLevelFarmAfterPause = false;
+                resumeEnergyAfterPause = false;
+                isBotPaused = false;
+                return true;
+            }
+        }
+
+        private static void ClearBotPauseState()
+        {
+            lock (botPauseLock)
+            {
+                resumeFishingAfterPause = false;
+                resumeLevelFarmAfterPause = false;
+                resumeEnergyAfterPause = false;
+                isBotPaused = false;
+            }
+        }
+
+        #endregion
+
         #region Durum sorguları
+
+        /// <summary>Duraklatma kalkana kadar iş parçacığını bekletir.</summary>
+        public static void WaitWhileBotPaused()
+        {
+            while (isBotPaused)
+            {
+                Thread.Sleep(50);
+            }
+        }
 
         /// <summary>
         /// Üç bot modu için ortak olan "oyun ortamı hazır mı?" kontrolü.
@@ -238,6 +320,7 @@ namespace MusicPlayerApp.Sources
         /// <summary>Şu anda balık tutulabilir mi?</summary>
         public static bool CanFishingRightNow()
         {
+            WaitWhileBotPaused();
             return isFishingStopped == false
                 && isSaleTitleActive == false
                 && IsGameEnvironmentReady();
@@ -246,18 +329,21 @@ namespace MusicPlayerApp.Sources
         /// <summary>Şu anda level/farm yapılabilir mi?</summary>
         public static bool CanLevelAndFarmRightNow()
         {
+            WaitWhileBotPaused();
             return isLevelFarmStopped == false && IsGameEnvironmentReady();
         }
 
         /// <summary>Şu anda enerji kristali döngüsü çalışabilir mi?</summary>
         public static bool CanEnergyCristalRightNow()
         {
+            WaitWhileBotPaused();
             return isEnergyCristalStopped == false && IsGameEnvironmentReady();
         }
 
         /// <summary>Üç bot modu da durmuş mu?</summary>
         public static bool CheckGameIsStopped()
         {
+            WaitWhileBotPaused();
             return isFishingStopped && isLevelFarmStopped && isEnergyCristalStopped;
         }
 
@@ -289,6 +375,7 @@ namespace MusicPlayerApp.Sources
                 ", isPrepareFishingStarted=" + isPrepareFishingStarted +
                 ", isCharStopped=" + isCharStopped +
                 ", isPausedTheGame=" + isPausedTheGame +
+                ", isBotPaused=" + isBotPaused +
                 ", isChatting=" + isChatting +
                 ", isCharScreenActive=" + isCharScreenActive +
                 ", isMetin2IconSeemed=" + isMetin2IconSeemed +
@@ -317,6 +404,7 @@ namespace MusicPlayerApp.Sources
             isCharScreenActive = false;
             isMetin2IconSeemed = true;
             isPausedTheGame = false;
+            ClearBotPauseState();
             isEntryScreenActive = false;
             isChatting = false;
             isCharStopped = false;

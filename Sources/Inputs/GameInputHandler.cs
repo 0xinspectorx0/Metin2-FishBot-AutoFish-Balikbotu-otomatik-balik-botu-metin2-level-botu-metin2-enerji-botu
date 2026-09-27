@@ -47,6 +47,7 @@ namespace MusicPlayerApp.Sources
        
         public void MouseClickQuickly (int x,int y) 
         {
+            ThreadGlobals.WaitWhileBotPaused();
             lock (lockMouseClick)
             {
                 // Mouse'un sol düğmesini basılı tut
@@ -65,6 +66,7 @@ namespace MusicPlayerApp.Sources
 
         public void MouseClick(int x, int y)
         {
+            ThreadGlobals.WaitWhileBotPaused();
             lock (lockMouseClick)
             {
                 // Mouse'un sol düğmesini basılı tut
@@ -83,6 +85,7 @@ namespace MusicPlayerApp.Sources
 
         public void MouseDown()
         {
+            ThreadGlobals.WaitWhileBotPaused();
             lock(lockMouseClick)
             {
                 // Mouse'un sol düğmesini basılı tut
@@ -115,6 +118,7 @@ namespace MusicPlayerApp.Sources
         /// <param name="y"> y coordinate of the screen </param>
         public void MouseMoveQuickly(int x, int y)
         {
+            ThreadGlobals.WaitWhileBotPaused();
             
             lock (lockMouseMove)
             {
@@ -128,6 +132,7 @@ namespace MusicPlayerApp.Sources
         
         public void MouseMove(int x,int y)
         {
+            ThreadGlobals.WaitWhileBotPaused();
             lock (lockMouseMove)
             {
                 // Fare imlecini belirtilen konuma taşı
@@ -139,6 +144,7 @@ namespace MusicPlayerApp.Sources
 
         public void MouseMoveAndPressLeft(int x, int y)
         {
+            ThreadGlobals.WaitWhileBotPaused();
             lock (lockMouseClick)
             {
                 MouseMove(x, y);
@@ -148,13 +154,14 @@ namespace MusicPlayerApp.Sources
 
         public void MouseMoveAndPressRight(int x,int y)
         {
+            ThreadGlobals.WaitWhileBotPaused();
             lock(lockMouseMove)
             {
                 MouseMove(x, y);
                 // Mouse'un sağ düğmesini basılı tut
                 mouse_event(MOUSEEVENTF_RIGHTDOWN, (uint)0, (uint)0, 0, 0);
                 // Kısa bir süre bekle
-                TimerGame.SleepRandom(10, 20);
+                Thread.Sleep(TimerGame.MakeRandomValue(10, 20));
                 // Mouse'un sağ düğmesini serbest bırak
                 mouse_event(MOUSEEVENTF_RIGHTUP, (uint)0, (uint)0, 0, 0);
                 TimerGame.SleepRandom(40, 60);

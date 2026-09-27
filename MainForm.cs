@@ -55,8 +55,11 @@ namespace MusicPlayerApp
        
 
         private const int MY_HOTKEY_ID = 1;
+        private const int MY_PAUSE_HOTKEY_ID = 2;
         private const uint MOD_CONTROL = 0x0002; // Ctrl tuşu için modifiyer
+        private const uint MOD_NOREPEAT = 0x4000; // Basılı tutarken tekrar tetiklemeyi önler
         private const uint VK_O = 0x4F; // O harfi için sanal tuş kodu
+        private const uint VK_P = 0x50; // P harfi için sanal tuş kodu
 
         public MainForm()
         {
@@ -112,8 +115,12 @@ namespace MusicPlayerApp
             imageObjects = ImageObjects.Instance;
             threadsHandler = new ThreadsHandler(imageObjects);
             coor = new GameObjectCoordinates(imageObjects);
-            // Hotkey'i kaydet
-            RegisterHotKey(this.Handle, MY_HOTKEY_ID, MOD_CONTROL, VK_O);
+            // Ctrl+O tamamen durdurur; Ctrl+P duraklatıp/devam ettirir.
+            RegisterHotKey(this.Handle, MY_HOTKEY_ID, MOD_CONTROL | MOD_NOREPEAT, VK_O);
+            if (!RegisterHotKey(this.Handle, MY_PAUSE_HOTKEY_ID, MOD_CONTROL | MOD_NOREPEAT, VK_P))
+            {
+                FileLogger.Warning("Ctrl+P duraklatma kısayolu kaydedilemedi; başka bir uygulama kullanıyor olabilir");
+            }
             // chatHandlerForm = new ChatHandlerForm();
 
 
@@ -129,38 +136,98 @@ namespace MusicPlayerApp
         protected override void WndProc(ref Message m)
         {
             const int WM_HOTKEY = 0x0312;
-            if (m.Msg == WM_HOTKEY && m.WParam.ToInt32() == MY_HOTKEY_ID)
+            if (m.Msg == WM_HOTKEY)
             {
-                // Ctrl + O tuş kombinasyonuna basıldığında yapılacak işlem
-                //MessageBox.Show("Ctrl + O tuşuna basıldı!");
-
-                if(!ThreadGlobals.isFishingStopped)
-                {                   
-                    buttonFishingStart.PerformClick();
-                    labelStartStatus.Text = "Ctrl+O ile durduruldu";
-                }
-                if (!ThreadGlobals.isLevelFarmStopped)
+                int hotkeyId = m.WParam.ToInt32();
+                if (hotkeyId == MY_HOTKEY_ID)
                 {
-                    buttonLevelStart.PerformClick();
-                    labelLevelFarmStatus.Text = "Ctrl+O ile durduruldu";
-
+                    StopBotFromHotkey();
                 }
-                if(!ThreadGlobals.isEnergyCristalStopped)
+                else if (hotkeyId == MY_PAUSE_HOTKEY_ID)
                 {
-                    buttonEnergyStart.PerformClick();
-                    labelEnergyCristal.Text = "Ctrl+O ile durduruldu";
+                    ToggleBotPauseFromHotkey();
                 }
-              /*  if (TelegramBot.TELEGRAM_BOT_IS_READY)
-                {
-                    TelegramBot.TELEGRAM_BOT_IS_READY = false;
-                    TelegramBot.TELEGRAM_SEND_MESSAGE = null;
-
-                    buttonTelegramTest.Text = "Test";
-                   
-                }*/
             }
+
             base.WndProc(ref m);
-            
+        }
+
+        private void StopBotFromHotkey()
+        {
+            if (ThreadGlobals.isBotPaused)
+            {
+                bool wasFishingActive = ThreadGlobals.WasFishingActiveBeforePause;
+                bool wasLevelFarmActive = ThreadGlobals.WasLevelFarmActiveBeforePause;
+                bool wasEnergyActive = ThreadGlobals.WasEnergyActiveBeforePause;
+                ThreadGlobals.isFishingStopped = true;
+                ThreadGlobals.isLevelFarmStopped = true;
+                ThreadGlobals.isEnergyCristalStopped = true;
+                if (wasFishingActive) labelStartStatus.Text = "Ctrl+O ile durduruldu";
+                if (wasLevelFarmActive) labelLevelFarmStatus.Text = "Ctrl+O ile durduruldu";
+                if (wasEnergyActive) labelEnergyCristal.Text = "Ctrl+O ile durduruldu";
+                threadsHandler.Stop();
+                return;
+            }
+
+            if (!ThreadGlobals.isFishingStopped)
+            {
+                buttonFishingStart.PerformClick();
+                labelStartStatus.Text = "Ctrl+O ile durduruldu";
+            }
+            if (!ThreadGlobals.isLevelFarmStopped)
+            {
+                buttonLevelStart.PerformClick();
+                labelLevelFarmStatus.Text = "Ctrl+O ile durduruldu";
+            }
+            if (!ThreadGlobals.isEnergyCristalStopped)
+            {
+                buttonEnergyStart.PerformClick();
+                labelEnergyCristal.Text = "Ctrl+O ile durduruldu";
+            }
+        }
+
+        private void ToggleBotPauseFromHotkey()
+        {
+            if (ThreadGlobals.isBotPaused)
+            {
+                bool resumeFishing = ThreadGlobals.WasFishingActiveBeforePause;
+                bool resumeLevelFarm = ThreadGlobals.WasLevelFarmActiveBeforePause;
+                bool resumeEnergy = ThreadGlobals.WasEnergyActiveBeforePause;
+                if (!ThreadGlobals.ResumeBot()) return;
+
+                TimerGame.ResumeBotTimers();
+                buttonFishingStart.Enabled = true;
+                buttonLevelStart.Enabled = true;
+                buttonEnergyStart.Enabled = true;
+                if (resumeFishing)
+                {
+                    buttonFishingStart.Text = "DURDUR";
+                    labelStartStatus.Text = "Ctrl+P ile devam edildi";
+                }
+                if (resumeLevelFarm)
+                {
+                    buttonLevelStart.Text = "DURDUR";
+                    labelLevelFarmStatus.Text = "Ctrl+P ile devam edildi";
+                }
+                if (resumeEnergy)
+                {
+                    buttonEnergyStart.Text = "DURDUR";
+                    labelEnergyCristal.Text = "Ctrl+P ile devam edildi";
+                }
+                FileLogger.Info("Bot Ctrl+P ile devam ettirildi");
+                return;
+            }
+
+            if (!ThreadGlobals.PauseBot()) return;
+
+            TimerGame.PauseBotTimers();
+            buttonFishingStart.Enabled = false;
+            buttonLevelStart.Enabled = false;
+            buttonEnergyStart.Enabled = false;
+            if (ThreadGlobals.WasFishingActiveBeforePause) labelStartStatus.Text = "Ctrl+P ile duraklatıldı";
+            if (ThreadGlobals.WasLevelFarmActiveBeforePause) labelLevelFarmStatus.Text = "Ctrl+P ile duraklatıldı";
+            if (ThreadGlobals.WasEnergyActiveBeforePause) labelEnergyCristal.Text = "Ctrl+P ile duraklatıldı";
+            FileLogger.Info("Bot Ctrl+P ile duraklatıldı");
         }
 
 

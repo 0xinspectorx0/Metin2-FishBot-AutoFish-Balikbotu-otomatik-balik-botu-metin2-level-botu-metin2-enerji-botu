@@ -35,12 +35,56 @@ namespace MusicPlayerApp.Sources
         private static DateTime? totalCountdownEndUtc;
         private static DateTime? activeCountdownEndUtc;
         private static DateTime? breakCountdownEndUtc;
+        private static DateTime? botPauseStartedUtc;
+        private static TimeSpan accumulatedBotPauseTime = TimeSpan.Zero;
+
+        /// <summary>Bot duraklatılınca tüm TimerGame sayaçlarının saatini dondurur.</summary>
+        public static void PauseBotTimers()
+        {
+            lock (countdownDisplayLock)
+            {
+                if (!botPauseStartedUtc.HasValue)
+                {
+                    botPauseStartedUtc = DateTime.UtcNow;
+                }
+            }
+        }
+
+        /// <summary>Bot devam ettiğinde, duraklama süresini bütün sayaçlardan çıkarır.</summary>
+        public static void ResumeBotTimers()
+        {
+            lock (countdownDisplayLock)
+            {
+                if (!botPauseStartedUtc.HasValue) return;
+                accumulatedBotPauseTime += DateTime.UtcNow - botPauseStartedUtc.Value;
+                botPauseStartedUtc = null;
+            }
+        }
+
+        private static DateTime GetLogicalUtcNow()
+        {
+            lock (countdownDisplayLock)
+            {
+                DateTime wallClock = botPauseStartedUtc ?? DateTime.UtcNow;
+                return wallClock - accumulatedBotPauseTime;
+            }
+        }
+
+        private static long GetLogicalUnixTimeMilliseconds()
+        {
+            return new DateTimeOffset(GetLogicalUtcNow()).ToUnixTimeMilliseconds();
+        }
+
+        private static long GetLogicalUnixTimeSeconds()
+        {
+            return new DateTimeOffset(GetLogicalUtcNow()).ToUnixTimeSeconds();
+        }
 
         public static void StartTotalCountdownDisplay(int minutes)
         {
             lock (countdownDisplayLock)
             {
-                totalCountdownEndUtc = DateTime.UtcNow.AddMinutes(Math.Max(0, minutes));
+                totalCountdownEndUtc = GetLogicalUtcNow().AddMinutes(Math.Max(0, minutes));
             }
         }
 
@@ -51,6 +95,11 @@ namespace MusicPlayerApp.Sources
                 totalCountdownEndUtc = null;
                 activeCountdownEndUtc = null;
                 breakCountdownEndUtc = null;
+                if (botPauseStartedUtc.HasValue)
+                {
+                    accumulatedBotPauseTime += DateTime.UtcNow - botPauseStartedUtc.Value;
+                    botPauseStartedUtc = null;
+                }
             }
         }
 
@@ -76,7 +125,7 @@ namespace MusicPlayerApp.Sources
             lock (countdownDisplayLock)
             {
                 activeCountdownEndUtc = null;
-                breakCountdownEndUtc = DateTime.UtcNow.AddMinutes(Math.Max(0, minutes));
+                breakCountdownEndUtc = GetLogicalUtcNow().AddMinutes(Math.Max(0, minutes));
             }
         }
 
@@ -101,7 +150,7 @@ namespace MusicPlayerApp.Sources
         {
             lock (countdownDisplayLock)
             {
-                return totalCountdownEndUtc.HasValue && DateTime.UtcNow >= totalCountdownEndUtc.Value;
+                return totalCountdownEndUtc.HasValue && GetLogicalUtcNow() >= totalCountdownEndUtc.Value;
             }
         }
 
@@ -128,7 +177,7 @@ namespace MusicPlayerApp.Sources
                 return null;
             }
 
-            TimeSpan remaining = endUtc.Value - DateTime.UtcNow;
+            TimeSpan remaining = endUtc.Value - GetLogicalUtcNow();
             return remaining <= TimeSpan.Zero ? TimeSpan.Zero : remaining;
         }
         private long StartedMilliSecTime = 0L;
@@ -237,7 +286,7 @@ namespace MusicPlayerApp.Sources
                 {
                     // İlk okuma genelde 0 döner; doğru ölçüm için bir saniye beklenir.
                     cpuCounter.NextValue();
-                    Thread.Sleep(1000);
+                    SleepActiveTime(1000);
                     float cpuFrequency = cpuCounter.NextValue();
 
                     FileLogger.Info(string.Format(System.Globalization.CultureInfo.InvariantCulture,
@@ -293,10 +342,26 @@ namespace MusicPlayerApp.Sources
         /// </summary>
         public static void SleepRandom(int minValue, int maxValue)
         {
-            int waitTime = MakeRandomValue(minValue, maxValue);
-            if (waitTime > 0)
+            SleepActiveTime(MakeRandomValue(minValue, maxValue));
+        }
+
+        /// <summary>Duraklatma sırasında süre ilerletmeden milisaniye bekler.</summary>
+        public static void SleepActiveTime(int milliseconds)
+        {
+            if (milliseconds <= 0) return;
+
+            const int sliceMilliseconds = 50;
+            long deadline = GetLogicalUnixTimeMilliseconds() + milliseconds;
+            while (true)
             {
-                Thread.Sleep(waitTime);
+                long now = GetLogicalUnixTimeMilliseconds();
+                long remaining = deadline - now;
+                if (remaining <= 0) return;
+
+                int sleepTime = ThreadGlobals.isBotPaused
+                    ? sliceMilliseconds
+                    : (int)Math.Min(sliceMilliseconds, remaining);
+                Thread.Sleep(sleepTime);
             }
         }
 
@@ -344,7 +409,7 @@ namespace MusicPlayerApp.Sources
                     }
 
                     int sleepTime = (int)Math.Min(sliceMilliseconds, remaining);
-                    Thread.Sleep(sleepTime);
+                    SleepActiveTime(sleepTime);
                     remaining -= sleepTime;
                 }
             }
@@ -365,7 +430,7 @@ namespace MusicPlayerApp.Sources
         public bool CheckDelayTimeInSecond(long delayTime)
         {
             if (StartedSecondTime <= 0L) SetStartedSecondTime();
-            return DateTimeOffset.UtcNow.ToUnixTimeSeconds() - StartedSecondTime < delayTime;
+            return GetLogicalUnixTimeSeconds() - StartedSecondTime < delayTime;
         }
 
         /// <summary>
@@ -375,7 +440,7 @@ namespace MusicPlayerApp.Sources
         public bool CheckDelayTimeInMilliSec(long delayTime)
         {
             if (StartedMilliSecTime <= 0L) SetStartedMilliSecTime();
-            return DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - StartedMilliSecTime < delayTime;
+            return GetLogicalUnixTimeMilliseconds() - StartedMilliSecTime < delayTime;
         }
 
         /// <summary>
@@ -385,7 +450,7 @@ namespace MusicPlayerApp.Sources
         public bool CheckDelayTimeInMinute(long delayTime)
         {
             if (StartedMinuteTime <= 0L) SetStartedMinuteTime();
-            return ((DateTimeOffset.UtcNow.ToUnixTimeSeconds() - StartedMinuteTime) / 60) < delayTime;
+            return ((GetLogicalUnixTimeSeconds() - StartedMinuteTime) / 60) < delayTime;
         }
 
         /// <summary>
@@ -446,17 +511,17 @@ namespace MusicPlayerApp.Sources
 
         public void SetStartedMilliSecTime()
         {
-            StartedMilliSecTime = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            StartedMilliSecTime = GetLogicalUnixTimeMilliseconds();
         }
 
         public void SetStartedSecondTime()
         {
-            StartedSecondTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            StartedSecondTime = GetLogicalUnixTimeSeconds();
         }
 
         public void SetStartedMinuteTime()
         {
-            StartedMinuteTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            StartedMinuteTime = GetLogicalUnixTimeSeconds();
         }
 
         #endregion
@@ -491,8 +556,7 @@ namespace MusicPlayerApp.Sources
                         return;
                     }
 
-                    Thread.Sleep(1000);
-                }
+                    SleepActiveTime(1000);                }
             }
             finally
             {
@@ -521,7 +585,7 @@ namespace MusicPlayerApp.Sources
                         return;
                     }
 
-                    Thread.Sleep(250);
+                    SleepActiveTime(250);
                 }
             }
             finally

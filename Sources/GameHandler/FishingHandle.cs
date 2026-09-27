@@ -171,6 +171,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                     {
                         while (!ThreadGlobals.isFishingStopped && ThreadGlobals.isActiveFishBoard)
                         {
+                            ThreadGlobals.WaitWhileBotPaused();
 
                             ClickFish(screenshot.CaptureAreaAsArray(coordinates.RectFishClickArea()));
                         }
@@ -191,6 +192,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                     {
                         while (ThreadGlobals.isActiveFishBoard)
                         {
+                            ThreadGlobals.WaitWhileBotPaused();
                             if (ThreadGlobals.isFishingStopped) return;
                             inputs.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
                             TimerGame.SleepRandom(15,30);
@@ -467,7 +469,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                                 // HATA DUZELTILDI: ikinci parametre yanlislikla X olarak
                                 // gonderiliyordu (rectFish.X + x, rectFish.X + x).
                                 inputs.MouseClickQuickly(rectFish.X + x, rectFish.Y + y);
-                                Thread.Sleep(TimerGame.MakeRandomValue(200, 400));
+                                TimerGame.SleepActiveTime(TimerGame.MakeRandomValue(200, 400));
                                 storeAttempt = 0;
                             }
 
