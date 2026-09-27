@@ -1159,6 +1159,7 @@ namespace MusicPlayerApp
         {
             toolTip.SetToolTip(checkBoxAdaptableFish, "Eğer haritada veya yakınınızda oyuncu var ise yavaş balık tutar");
             toolTip.SetToolTip(checkBoxPCSlow, "Eğer Bilgisayarın çok yavaş ise balık tutmak yada enerji parçası için bu seçeneği tıkla");
+            toolTip.SetToolTip(checkBoxCloseAfterTime, "Toplam süre dolduğunda uygulamayı tamamen kapatır.");
         }
 
         private void checkBoxAdaptable_CheckedChanged(object sender, EventArgs e)
