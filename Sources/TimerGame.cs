@@ -96,6 +96,15 @@ namespace MusicPlayerApp.Sources
             }
         }
 
+        /// <summary>Toplam süre sayacı kurulmuş ve süresi dolmuş mu?</summary>
+        public static bool IsTotalCountdownExpired()
+        {
+            lock (countdownDisplayLock)
+            {
+                return totalCountdownEndUtc.HasValue && DateTime.UtcNow >= totalCountdownEndUtc.Value;
+            }
+        }
+
         public static TimeSpan? GetActiveCountdownRemaining()
         {
             lock (countdownDisplayLock)

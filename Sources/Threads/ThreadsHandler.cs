@@ -83,6 +83,12 @@ namespace MusicPlayerApp.Sources
         private TimerGame timerLevelFarmBot;
         private TimerGame timeEnergyBot;
 
+        private readonly object totalCountdownWatcherLock = new object();
+        private System.Threading.Timer totalCountdownWatcher;
+        private volatile bool isBotRunActive;
+        private int totalCountdownGeneration;
+        private int totalTimeExpiryHandled;
+
         public ThreadsHandler(ImageObjects imageObject)
         {
             // imageObject null gelirse singleton kullanılır; referans PNG'ler yeniden yüklenmez.
@@ -119,6 +125,14 @@ namespace MusicPlayerApp.Sources
                 ", levelFarm=" + ThreadGlobals.isLevelFarmStopped +
                 ", enerji=" + ThreadGlobals.isEnergyCristalStopped + ")");
 
+            StopTotalCountdownWatcher();
+            Interlocked.Exchange(ref totalTimeExpiryHandled, 0);
+            isBotRunActive = true;
+            // Thread gövdeleri başlamadan önce bayrakları kaldır ki çok kısa/0 dakikalık
+            // toplam sürede Stop() çağrısı başlangıç atamasıyla geri çevrilmesin.
+            ThreadGlobals.IsThreadOneActive = true;
+            ThreadGlobals.IsThreadTwoActive = true;
+            ThreadGlobals.IsThreadThreeActive = true;
             TimerGame.ResetCountdownDisplay();
             if (ThreadGlobals.isTimerBreakEnabled)
             {
@@ -149,6 +163,97 @@ namespace MusicPlayerApp.Sources
         {
             timeGeneral.SetStartedMinuteTime();
             TimerGame.StartTotalCountdownDisplay(TimerGame.GAME_STOP_TIME);
+            StartTotalCountdownWatcher();
+        }
+
+        /// <summary>
+        /// Botun ana döngüsünden bağımsız olarak toplam süreyi izler. Böylece balık
+        /// aktiflik süresinin veya başka bir oyun işleminin bitmesi beklenmez.
+        /// </summary>
+        private void StartTotalCountdownWatcher()
+        {
+            if (!isBotRunActive)
+            {
+                return;
+            }
+
+            lock (totalCountdownWatcherLock)
+            {
+                if (totalCountdownWatcher == null)
+                {
+                    int generation = Volatile.Read(ref totalCountdownGeneration);
+                    totalCountdownWatcher = new System.Threading.Timer(
+                        TotalCountdownWatcherTick, generation, 200, 200);
+                }
+            }
+        }
+
+        private void StopTotalCountdownWatcher()
+        {
+            Interlocked.Increment(ref totalCountdownGeneration);
+
+            System.Threading.Timer watcher;
+            lock (totalCountdownWatcherLock)
+            {
+                watcher = totalCountdownWatcher;
+                totalCountdownWatcher = null;
+            }
+
+            if (watcher != null)
+            {
+                watcher.Dispose();
+            }
+        }
+
+        private void TotalCountdownWatcherTick(object state)
+        {
+            int generation = (int)state;
+            if (!isBotRunActive || !ThreadGlobals.isTimerBreakEnabled ||
+                generation != Volatile.Read(ref totalCountdownGeneration) ||
+                !TimerGame.IsTotalCountdownExpired())
+            {
+                return;
+            }
+
+            HandleTotalTimeExpired(generation);
+        }
+
+        private void HandleTotalTimeExpired(int generation)
+        {
+            if (!isBotRunActive || generation != Volatile.Read(ref totalCountdownGeneration) ||
+                Interlocked.CompareExchange(ref totalTimeExpiryHandled, 1, 0) != 0)
+            {
+                return;
+            }
+
+            FileLogger.Info("Toplam süre doldu; tüm bot modları durduruluyor");
+            HandleFormElement(MainForm.labelCopyStartStatus, "Toplam süre doldu; bot durduruldu");
+            HandleFormElement(MainForm.labelCopyLevelFarmStatus, "Toplam süre doldu; bot durduruldu");
+            HandleFormElement(MainForm.labelCopyEnergyCristalStatus, "Toplam süre doldu; bot durduruldu");
+
+            // Modları önce durdur; aktiflik döngüsü devam ediyor olsa bile yeni işlem
+            // başlatılmasın. Oyun içi çıkış bundan sonra denenir.
+            ThreadGlobals.isFishingStopped = true;
+            ThreadGlobals.isLevelFarmStopped = true;
+            ThreadGlobals.isEnergyCristalStopped = true;
+            bool closeApplication = MainForm.CloseApplicationAfterTotalTime;
+            Stop();
+
+            // Oyun içi çıkış mevcut davranış olarak korunur; hata botun durmasını engellemez.
+            try
+            {
+                charThings.SettingButtonClick(SettingButtonPrefers.EXIT_BUTTON);
+            }
+            catch (Exception ex)
+            {
+                FileLogger.Warning("Süre sonunda oyun içi çıkış başarısız: " + ex.Message);
+            }
+
+            if (closeApplication)
+            {
+                FileLogger.Info("Süre sonu seçeneği etkin; uygulama hard olarak kapatılıyor");
+                Environment.Exit(0);
+            }
         }
 
         /// <summary>
@@ -168,6 +273,8 @@ namespace MusicPlayerApp.Sources
             catch (Exception ex)
             {
                 FileLogger.ErrorForThread(threadName, ex);
+                isBotRunActive = false;
+                StopTotalCountdownWatcher();
 
                 // Kullanıcıyı bilgilendir ve botu durmuş say.
                 ThreadGlobals.isFishingStopped = true;
@@ -204,7 +311,6 @@ namespace MusicPlayerApp.Sources
         private void ThreadOneBody()
         {
             HandleFormElement(MainForm.buttonFishingStartCopy, string.Empty, false);
-            ThreadGlobals.IsThreadOneActive = true;
             MakeBackCounting();
             HandleFormElement(MainForm.buttonFishingStartCopy, string.Empty, true);
 
@@ -223,40 +329,11 @@ namespace MusicPlayerApp.Sources
 
                 while (ThreadGlobals.IsThreadOneActive)
                 {
-                    // Toplam çalışma süresi dolduysa oyunu kapat ve botu durdur.
-                    if (ThreadGlobals.isTimerBreakEnabled)
+                    // T1 hızlı bir ek kontrol yapar; asıl süre denetçisi ayrı watcher'dır.
+                    if (ThreadGlobals.isTimerBreakEnabled && TimerGame.IsTotalCountdownExpired())
                     {
-                        if (!timeGeneral.CheckDelayTimeInMinute(TimerGame.GAME_STOP_TIME))
-                        {
-                            FileLogger.Info("Toplam süre doldu; tüm bot modları durduruluyor");
-                            HandleFormElement(MainForm.labelCopyStartStatus, "Toplam süre doldu; bot durduruldu");
-                            HandleFormElement(MainForm.labelCopyLevelFarmStatus, "Toplam süre doldu; bot durduruldu");
-                            HandleFormElement(MainForm.labelCopyEnergyCristalStatus, "Toplam süre doldu; bot durduruldu");
-
-                            // Mevcut davranış korunur: toplam süre dolunca oyun içinden çıkılır.
-                            // Bu işlem hata verse bile botun durdurulması garanti edilmelidir.
-                            try
-                            {
-                                charThings.SettingButtonClick(SettingButtonPrefers.EXIT_BUTTON);
-                            }
-                            catch (Exception ex)
-                            {
-                                FileLogger.Warning("Süre sonunda oyun içi çıkış başarısız: " + ex.Message);
-                            }
-
-                            ThreadGlobals.isFishingStopped = true;
-                            ThreadGlobals.isLevelFarmStopped = true;
-                            ThreadGlobals.isEnergyCristalStopped = true;
-                            bool closeApplication = MainForm.CloseApplicationAfterTotalTime;
-                            Stop();
-
-                            if (closeApplication)
-                            {
-                                FileLogger.Info("Süre sonu seçeneği etkin; uygulama hard olarak kapatılıyor");
-                                Environment.Exit(0);
-                            }
-                            return;
-                        }
+                        HandleTotalTimeExpired(Volatile.Read(ref totalCountdownGeneration));
+                        return;
                     }
 
                     if (!ThreadGlobals.isFishingStopped)
@@ -287,7 +364,6 @@ namespace MusicPlayerApp.Sources
 
         private void ThreadTwoBody()
         {
-            ThreadGlobals.IsThreadTwoActive = true;
             TimerGame.SleepRandom(1500, 2000);
 
             try
@@ -310,7 +386,6 @@ namespace MusicPlayerApp.Sources
 
         private void ThreadThreeBody()
         {
-            ThreadGlobals.IsThreadThreeActive = true;
             Thread.Sleep(3100);
 
             try
@@ -431,6 +506,8 @@ namespace MusicPlayerApp.Sources
         {
             FileLogger.Info("ThreadsHandler.Stop çağrıldı");
 
+            isBotRunActive = false;
+            StopTotalCountdownWatcher();
             TimerGame.ResetCountdownDisplay();
             ThreadGlobals.isFishingStopped = true;
             ThreadGlobals.isLevelFarmStopped = true;
