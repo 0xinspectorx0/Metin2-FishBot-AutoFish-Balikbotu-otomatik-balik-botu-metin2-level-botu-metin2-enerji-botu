@@ -44,6 +44,9 @@ Bilgisayarınızda aktif kullandığınız başka programlar yok ise sadece 2 Gh
 
 ### Balık Botunun Yapabildikleri
 
+**Tek seferlik balık pişirme:** Fishing sekmesindeki **Balıkları Pişir** düğmesi, diğer botlar kapalıyken envanterin ilk iki sayfasında tanınan balıkları (Yabbie, Altın Sudak, Palamut, Kurbağa, Kadife, Hamsi, Zargana) tarar. Yanan kamp ateşi varsa onu kullanır; yoksa envanterinizdeki kamp ateşini yakmayı dener. Balıkçıdan alışveriş yapmaz, yem hazırlamaz, balık tutmaz ve işlem bitince başka işlem başlatmaz. Ortasında durdurmak için **Pişirmeyi Durdur** veya **Ctrl+O** kullanın. Balık yoksa ya da ateş bulunamazsa durum mesajıyla durur. Sadece görüntüyle tanınabilen balıklar işlenir; diğer envanter nesnelerine dokunulmaz. Oyun penceresini 800x600 modunda sabit tutun.
+
+
 - Yabbie, Palamut, Altın Sudak ve Kurbağa Tutma ve yakma(kurbağa balığı yakma ekli değil)
 - Hepsi tut seçeneği ile hepsini tutar ve envanterdeki hepsini yakma(Envanterdeki bütün objeleri ateşe sürükler sadece balıklar yanar :) 
 - Karakter öldüğünde Kanal Değiştirme

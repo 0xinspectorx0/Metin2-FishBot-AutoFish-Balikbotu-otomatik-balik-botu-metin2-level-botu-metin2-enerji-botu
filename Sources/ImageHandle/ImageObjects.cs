@@ -33,6 +33,8 @@ namespace MusicPlayerApp.Sources.ImageHandle
         public int[] arrayWorm {get; private set; }
         public int[] array200WhiteNumber { get; private set; }
         public int[] arrayYabbieIcon { get; private set; }
+        public int[] arrayHamsiIcon { get; private set; }
+        public int[] arrayZarganaIcon { get; private set; }
         public int[] arrayAltinSudakIcon { get; private set; }
         public int[] arrayPalamutIcon { get; private set; }
         public int[] arrayKurbagaIcon { get; private set; }
@@ -150,6 +152,8 @@ namespace MusicPlayerApp.Sources.ImageHandle
 
 
             arrayYabbieIcon = convertBitMapToIntArray(ImagePathNames.yabbieIconFileName, PathWayStruct.PATH_FISHES);
+            arrayHamsiIcon = convertBitMapToIntArray(ImagePathNames.hamsiIconFileName, PathWayStruct.PATH_FISHES);
+            arrayZarganaIcon = convertBitMapToIntArray(ImagePathNames.zarganaIconFileName, PathWayStruct.PATH_FISHES);
             arrayAltinSudakIcon = convertBitMapToIntArray(ImagePathNames.altinSudakIconFileName, PathWayStruct.PATH_FISHES);
             arrayPalamutIcon = convertBitMapToIntArray(ImagePathNames.palamutIconFileName, PathWayStruct.PATH_FISHES);
             arrayKurbagaIcon = convertBitMapToIntArray(ImagePathNames.kurbagaIconFileName, PathWayStruct.PATH_FISHES);

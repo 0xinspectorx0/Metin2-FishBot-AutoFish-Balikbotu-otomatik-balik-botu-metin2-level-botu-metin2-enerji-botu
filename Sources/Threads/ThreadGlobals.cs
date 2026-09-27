@@ -41,6 +41,8 @@ namespace MusicPlayerApp.Sources
 
         /*************   ABOUT FISHED ***************/
         public static volatile bool isFishingStopped = true;
+        // A single cooking job never starts the fishing/status-monitor threads.
+        public static volatile bool isStandaloneGrilling = false;
 
         public static volatile bool isYabbieSelected = true;
         public static volatile bool isAltinSudakSelected = true;
@@ -129,7 +131,7 @@ namespace MusicPlayerApp.Sources
 
         public static bool CheckGameIsStopped()
         {
-            if(isFishingStopped && isLevelFarmStopped && isEnergyCristalStopped)
+            if(isFishingStopped && isLevelFarmStopped && isEnergyCristalStopped && !isStandaloneGrilling)
             {
                 return true;
             }

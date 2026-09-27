@@ -64,6 +64,102 @@ namespace MusicPlayerApp.Sources.GameHandler
             ThreadGlobals.isPrepareFishingStarted = false;
         }
 
+        /// <summary>
+        /// Cook only recognized fish already in the two inventory pages. No fishing,
+        /// vendor purchases, worm handling, or return to the fishing spot.
+        /// Returns a user-facing result; cancellation is checked between game inputs.
+        /// </summary>
+        public string GrillInventoryOnce(Func<bool> cancelled)
+        {
+            if (cancelled()) return "Balık pişirme durduruldu.";
+
+            // Inventory helpers need a live game and an active standalone job. Do not
+            // start the other bot threads simply to satisfy their state checks.
+            int[] setting = screenShot.ImageArraySpecifiedArea(coordinate.RectSettingButton());
+            if (!imageObjects.CompareTwoArrayAdvanced(imageObjects.arraySettingButton, setting,
+                ImageSensibilityLevel.SENSIBILTY_MED))
+                return "Metin2 oyun ekranı bulunamadı.";
+            ThreadGlobals.isSettingButtonSeemed = true;
+            charThings.OpenCloseInventory(true);
+            if (cancelled()) return "Balık pişirme durduruldu.";
+            if (!imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayInventoryTitle,
+                screenShot.ImageArraySpecifiedArea(coordinate.RectInventory()), ImageSensibilityLevel.SENSIBILTY_HIGH))
+                return "Envanter açılamadı.";
+
+            int[][] types = { imageObjects.arrayYabbieIcon, imageObjects.arrayAltinSudakIcon,
+                imageObjects.arrayPalamutIcon, imageObjects.arrayKurbagaIcon,
+                imageObjects.arrayKadifeIcon, imageObjects.arrayHamsiIcon,
+                imageObjects.arrayZarganaIcon };
+            Rectangle[][][] fish = new Rectangle[2][][];
+            int fishSlots = 0;
+            for (int page = 0; page < 2; page++)
+            {
+                fish[page] = new Rectangle[types.Length][];
+                for (int type = 0; type < types.Length; type++)
+                {
+                    if (cancelled()) return "Balık pişirme durduruldu.";
+                    fish[page][type] = charThings.CheckObjectInventory(types[type],
+                        coordinate.RectItemSlotSizeSample(), page == 0 ? InventoryPage.Page_1 : InventoryPage.Page_2);
+                    fishSlots += fish[page][type].Length;
+                }
+            }
+            if (fishSlots == 0) return "Envanterde tanınan balık bulunamadı.";
+
+            // First use a fire already burning on the ground; otherwise light one
+            // from inventory. Never visit the fisher or buy anything.
+            bool[] fireColor = imageObjects.RecordWantedColorAsBool(ColorGame.MAP_CAMP_FIRE_GREEN,
+                imageObjects.arrayKampAtesiWords);
+            Rectangle[] fires = imageObjects.FindAllImagesBoolArrays(fireColor, coordinate.RectKampGreenSample(),
+                coordinate.RectKampAtesiAsagiTarafKoordinat(), ColorGame.MAP_CAMP_FIRE_GREEN);
+            Rectangle fire = fires.Length > 0 ? fires[0] : FireKampAtesi(true);
+            if (cancelled()) return "Balık pişirme durduruldu.";
+            if (fire == Rectangle.Empty) return "Kamp ateşi bulunamadı. Envanterde kamp ateşi bulundurun.";
+
+            TimerGame timer = new TimerGame();
+            int cookingAttempts = 0;
+            for (int page = 0; page < 2; page++)
+            {
+                if (cancelled()) return "Balık pişirme durduruldu.";
+                charThings.ClickWantedInventoryPage(page == 0 ? InventoryPage.Page_1 : InventoryPage.Page_2);
+                for (int type = 0; type < types.Length; type++)
+                {
+                    foreach (Rectangle slot in fish[page][type])
+                    {
+                        // Recheck the icon: a previous cook may have changed the slot.
+                        // Rescan the slot after each click to handle stacked fish too.
+                        int attempts = 0;
+                        while (!cancelled() && imageObjects.CompareTwoArrayAdvanced(types[type],
+                            screenShot.ImageArraySpecifiedArea(slot), ImageSensibilityLevel.SENSIBILTY_HIGH))
+                        {
+                            if (!timer.CheckDelayTimeInSecond(60) || ++attempts > 250)
+                                return "Pişirme tamamlanamadı (süre/ateş sınırı).";
+                            if (!imageObjects.CompareTwoArrayAdvanced(imageObjects.arraySettingButton,
+                                screenShot.ImageArraySpecifiedArea(coordinate.RectSettingButton()),
+                                ImageSensibilityLevel.SENSIBILTY_MED))
+                                return "Oyun ekranı kayboldu; pişirme durduruldu.";
+                            inputGame.MouseMoveAndPressLeft(slot.X + slot.Width / 2, slot.Y);
+                            if (cancelled()) return "Balık pişirme durduruldu.";
+                            inputGame.MouseMoveAndPressLeft(fire.X + fire.Width / 2, fire.Y + fire.Height / 2);
+                            cookingAttempts++;
+                            TimerGame.SleepRandom(300, 400);
+                            if (imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayYereAtmaDialog,
+                                screenShot.ImageArraySpecifiedArea(coordinate.RectYereAtmaAlgilama()),
+                                ImageSensibilityLevel.SENSIBILTY_HIGH))
+                            {
+                                inputGame.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
+                                return "Ateş kullanılamadı; pişirme durduruldu.";
+                            }
+                            timer.SetStartedSecondTime();
+                        }
+                        if (cancelled()) return "Balık pişirme durduruldu.";
+
+                    }
+                }
+            }
+            return cookingAttempts == 0 ? "Balıklar tanındı ama pişirilemedi." :
+                "Pişirme tamamlandı (" + cookingAttempts + " işlem).";
+        }
+
         private void FindFisher()
         {
             TimerGame timeGame = new TimerGame();
@@ -699,9 +795,9 @@ namespace MusicPlayerApp.Sources.GameHandler
                         
         }
         
-        private Rectangle FireKampAtesi()
+        private Rectangle FireKampAtesi(bool standalone = false)
         {
-            CloseFisherShopPage();
+            if (!standalone) CloseFisherShopPage();
             TimerGame timerFireKamp = new TimerGame();
 
             Rectangle[] kampAtesiIconInvent = charThings.CheckObjectInventory(imageObjects.arrayKampIcon,
@@ -724,7 +820,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                 {
                     if (timerFireKamp.CheckDelayTimeInSecond(20))
                     {
-                        if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) { return Rectangle.Empty; }
+                        if ((standalone ? !ThreadGlobals.isStandaloneGrilling : ThreadGlobals.isFishingStopped) || ThreadGlobals.isCharKilled) { return Rectangle.Empty; }
 
                         inputGame.KeyDown(KeyboardInput.ScanCodeShort.KEY_S);
                         TimerGame.SleepRandom(400, 500);

@@ -69,6 +69,7 @@ namespace MusicPlayerApp
             this.buttonQuickSS = new System.Windows.Forms.Button();
             this.labelStartStatus = new System.Windows.Forms.Label();
             this.buttonFishingStart = new System.Windows.Forms.Button();
+            this.buttonCookFish = new System.Windows.Forms.Button();
             this.pictureBoxMainForm = new System.Windows.Forms.PictureBox();
             this.buttonScreenShot = new System.Windows.Forms.Button();
             this.tabPage2 = new System.Windows.Forms.TabPage();
@@ -186,6 +187,7 @@ namespace MusicPlayerApp
             this.tabPageFishing.Controls.Add(this.buttonQuickSS);
             this.tabPageFishing.Controls.Add(this.labelStartStatus);
             this.tabPageFishing.Controls.Add(this.buttonFishingStart);
+            this.tabPageFishing.Controls.Add(this.buttonCookFish);
             this.tabPageFishing.Controls.Add(this.pictureBoxMainForm);
             this.tabPageFishing.Controls.Add(this.buttonScreenShot);
             this.tabPageFishing.Location = new System.Drawing.Point(4, 22);
@@ -510,13 +512,13 @@ namespace MusicPlayerApp
             // 
             // labelStartStatus
             // 
-            this.labelStartStatus.AutoSize = true;
-            this.labelStartStatus.Font = new System.Drawing.Font("Microsoft Sans Serif", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.labelStartStatus.AutoSize = false;
+            this.labelStartStatus.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.labelStartStatus.ForeColor = System.Drawing.Color.Red;
-            this.labelStartStatus.Location = new System.Drawing.Point(171, 291);
+            this.labelStartStatus.Location = new System.Drawing.Point(171, 280);
             this.labelStartStatus.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.labelStartStatus.Name = "labelStartStatus";
-            this.labelStartStatus.Size = new System.Drawing.Size(57, 24);
+            this.labelStartStatus.Size = new System.Drawing.Size(310, 42);
             this.labelStartStatus.TabIndex = 29;
             this.labelStartStatus.Text = "Good";
             this.labelStartStatus.TextAlign = System.Drawing.ContentAlignment.TopCenter;
@@ -533,6 +535,16 @@ namespace MusicPlayerApp
             this.buttonFishingStart.UseVisualStyleBackColor = true;
             this.buttonFishingStart.Click += new System.EventHandler(this.buttonFishingStartClick);
             // 
+            // buttonCookFish
+            //
+            this.buttonCookFish.Location = new System.Drawing.Point(175, 326);
+            this.buttonCookFish.Name = "buttonCookFish";
+            this.buttonCookFish.Size = new System.Drawing.Size(184, 25);
+            this.buttonCookFish.TabIndex = 58;
+            this.buttonCookFish.Text = "Balıkları Pişir";
+            this.buttonCookFish.UseVisualStyleBackColor = true;
+            this.buttonCookFish.Click += new System.EventHandler(this.buttonCookFish_Click);
+            //
             // pictureBoxMainForm
             // 
             this.pictureBoxMainForm.Location = new System.Drawing.Point(7, 15);
@@ -1297,6 +1309,7 @@ namespace MusicPlayerApp
         private System.Windows.Forms.Button buttonQuickSS;
         private System.Windows.Forms.Label labelStartStatus;
         private System.Windows.Forms.Button buttonFishingStart;
+        private System.Windows.Forms.Button buttonCookFish;
         public System.Windows.Forms.PictureBox pictureBoxMainForm;
         private System.Windows.Forms.Button buttonScreenShot;
         private System.Windows.Forms.Button buttonLevelStart;

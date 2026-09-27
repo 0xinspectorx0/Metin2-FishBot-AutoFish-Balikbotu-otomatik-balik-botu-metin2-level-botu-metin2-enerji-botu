@@ -100,11 +100,13 @@ namespace MusicPlayerApp.Sources.CharacterHandle
 
         public void OpenCloseSettingButton(bool state)
         {
+            TimerGame standaloneTimer = new TimerGame();
             int[] targetCharButton = screenshot.ImageArraySpecifiedArea(coor.RectCharButton());
             while (imageObject.CompareTwoArrayAdvanced(imageObject.arrayCharButton,
                 targetCharButton,ImageSensibilityLevel.SENSIBILTY_HIGH) != state)
             {
                 //buraya setting buton görülmedi thread gloabal değeri koyma!!
+                if (ThreadGlobals.isStandaloneGrilling && !standaloneTimer.CheckDelayTimeInSecond(10)) return;
                 if ((ThreadGlobals.CheckGameIsStopped() || !ThreadGlobals.isSettingButtonSeemed))
                 {
                     DebugPfCnsl.println("OpenCloseSettingButton is returned");
@@ -174,7 +176,10 @@ namespace MusicPlayerApp.Sources.CharacterHandle
                 }
                 else
                 {
-                    if(!Thread.CurrentThread.Name.Equals(ThreadsHandler.T2Name)) 
+                    // One-off cooking must not trigger the regular bot's character
+                    // switching recovery when the inventory cannot be opened.
+                    if (ThreadGlobals.isStandaloneGrilling) return;
+                    if (!Thread.CurrentThread.Name.Equals(ThreadsHandler.T2Name))
                     {
                         DebugPfCnsl.println("envanter yazısı tespit edilemedi bu yüzden karakter" +
                             "atılıyor...");

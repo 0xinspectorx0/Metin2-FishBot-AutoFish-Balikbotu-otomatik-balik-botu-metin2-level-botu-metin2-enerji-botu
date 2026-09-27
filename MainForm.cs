@@ -4,6 +4,7 @@ using Metin2AutoFishCSharp.Sources.ChatHandler;
 using MusicPlayerApp.Debugs;
 using MusicPlayerApp.Sources;
 using MusicPlayerApp.Sources.GameHandler;
+using MusicPlayerApp.Sources.CoordinatesHandler;
 using MusicPlayerApp.Sources.ImageHandle;
 using System;
 using System.Collections.Generic;
@@ -39,6 +40,7 @@ namespace MusicPlayerApp
         private GameObjectCoordinates coor;
 
         private TelegramBot telegramBot;
+        private volatile bool cookingJobRunning;
         //ChatHandlerForm chatHandlerForm;
 
         private static FullScreen fullScreenStatic;
@@ -67,6 +69,7 @@ namespace MusicPlayerApp
             DebugPfCnsl.println( "MainForm constructor is called");
             DebugPfCnsl.println(Thread.CurrentThread.Name);
             InitializeToolTip();
+            this.FormClosing += (sender, args) => ThreadGlobals.isStandaloneGrilling = false;
             pictureBox = pictureBoxMainForm;
             labelCopyStartStatus = labelStartStatus;
             labelCopyLevelFarmStatus = labelLevelFarmStatus;
@@ -99,6 +102,7 @@ namespace MusicPlayerApp
                 // Ctrl + O tuş kombinasyonuna basıldığında yapılacak işlem
                 //MessageBox.Show("Ctrl + O tuşuna basıldı!");
 
+                if (cookingJobRunning) ThreadGlobals.isStandaloneGrilling = false;
                 if(!ThreadGlobals.isFishingStopped)
                 {                   
                     buttonFishingStart.PerformClick();
@@ -129,8 +133,72 @@ namespace MusicPlayerApp
         }
 
 
+        private void buttonCookFish_Click(object sender, EventArgs e)
+        {
+            if (cookingJobRunning)
+            {
+                ThreadGlobals.isStandaloneGrilling = false;
+                buttonCookFish.Enabled = false; // Wait for the worker to finish safely.
+                return;
+            }
+            if (!ThreadGlobals.CheckGameIsStopped())
+            {
+                MessageBox.Show("Önce çalışan botu durdurun.", "Balık pişirme", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            cookingJobRunning = true;
+            ThreadGlobals.isStandaloneGrilling = true;
+            buttonCookFish.Text = "Pişirmeyi Durdur";
+            buttonFishingStart.Enabled = false;
+            buttonLevelStart.Enabled = false;
+            buttonEnergyStart.Enabled = false;
+            labelStartStatus.Text = "Balıklar pişiriliyor...";
+
+            Thread worker = new Thread(() =>
+            {
+                string result;
+                try
+                {
+                    result = new PrepareFishing(imageObjects).GrillInventoryOnce(
+                        () => !ThreadGlobals.isStandaloneGrilling);
+                }
+                catch (Exception ex)
+                {
+                    DebugPfCnsl.println("Standalone grilling failed: " + ex);
+                    result = "Pişirme sırasında hata oluştu.";
+                }
+                finally
+                {
+                    ThreadGlobals.isStandaloneGrilling = false;
+                    ThreadGlobals.isSettingButtonSeemed = false;
+                }
+                if (!IsDisposed && IsHandleCreated)
+                {
+                    try
+                    {
+                        BeginInvoke((Action)(() =>
+                        {
+                            labelStartStatus.Text = result;
+                            buttonCookFish.Text = "Balıkları Pişir";
+                            buttonCookFish.Enabled = true;
+                            buttonFishingStart.Enabled = true;
+                            buttonLevelStart.Enabled = true;
+                            buttonEnergyStart.Enabled = true;
+                            cookingJobRunning = false;
+                        }));
+                    }
+                    catch (InvalidOperationException) { /* Form was closed. */ }
+                }
+            });
+            worker.IsBackground = true;
+            worker.Name = "Fish Cooking";
+            worker.Start();
+        }
+
         private void buttonFishingStartClick(object sender, EventArgs e)
         {
+            if (cookingJobRunning) return;
             // DebugPfCnsl.println("value " + tabPageFishing.CanFocus);
             if (ThreadGlobals.isLevelFarmStopped)
             {
@@ -165,6 +233,7 @@ namespace MusicPlayerApp
 
         private void buttonLevelStart_Click(object sender, EventArgs e)
         {
+            if (cookingJobRunning) return;
             if (ThreadGlobals.isFishingStopped)
             {
                 if (ThreadGlobals.isEnergyCristalStopped)
@@ -218,6 +287,7 @@ namespace MusicPlayerApp
 
         private void buttonEnergyCristalStart_Click(object sender, EventArgs e)
         {
+            if (cookingJobRunning) return;
             if (ThreadGlobals.isFishingStopped)
             {
                 if(ThreadGlobals.isLevelFarmStopped)
@@ -936,6 +1006,7 @@ namespace MusicPlayerApp
         {
             toolTip.SetToolTip(checkBoxAdaptableFish, "Eğer haritada veya yakınınızda oyuncu var ise yavaş balık tutar");
             toolTip.SetToolTip(checkBoxPCSlow, "Eğer Bilgisayarın çok yavaş ise balık tutmak yada enerji parçası için bu seçeneği tıkla");
+            toolTip.SetToolTip(buttonCookFish, "Yalnızca envanterde tanınan balıkları mevcut/kendi kamp ateşinde pişirir. Balık tutmaz veya alışveriş yapmaz.");
         }
 
         private void checkBoxEnableTime_CheckedChanged_1(object sender, EventArgs e)
