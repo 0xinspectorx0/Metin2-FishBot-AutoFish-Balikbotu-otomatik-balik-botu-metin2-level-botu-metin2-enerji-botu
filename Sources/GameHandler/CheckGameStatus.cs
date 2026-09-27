@@ -277,16 +277,36 @@ namespace MusicPlayerApp.Sources.GameHandler
             {
                 if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
 
-                List<int> availableChannels = ReadUnknownChannels();
+                bool hasFullChannel = false;
+                List<int> availableChannels = ReadUnknownChannels(out hasFullChannel);
                 List<int> channelsToTry = availableChannels
                     .Where(channel => !attemptedChannels.Contains(channel))
                     .ToList();
 
                 if (channelsToTry.Count == 0)
                 {
-                    if (attemptedChannels.Count > 0)
+                    // Bilinmeyen CH'ler bu turda zaten denendiyse, bir sonraki taramaya
+                    // kadar sayaç sıfırlanır; dolu CH'lere gereksiz tıklanmaz.
+                    if (availableChannels.Count > 0)
                     {
                         attemptedChannels.Clear();
+                    }
+                    else if (hasFullChannel)
+                    {
+                        // Kanal listesi Dolu/Kalabalık ise Nite'yi yeniden seçerek listeyi
+                        // yenile; yarım saniye sonra rastgele bir CH'yi ve Tamam'ı dene.
+                        int selectedChannel = ReselectNiteAndTryRandomChannel();
+                        if (selectedChannel > 0)
+                        {
+                            TimerGame connectionTimer = new TimerGame();
+                            while (connectionTimer.CheckDelayTimeInSecond(
+                                    ENTRY_CHANNEL_CONNECT_TIMEOUT_SECONDS) && IsEntryScreenVisible())
+                            {
+                                if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
+                                Thread.Sleep(500);
+                            }
+                            continue;
+                        }
                     }
 
                     FileLogger.Info("Nite sunucusunda Bilinmeyen durumunda uygun CH yok; " +
@@ -325,9 +345,10 @@ namespace MusicPlayerApp.Sources.GameHandler
             ThreadGlobals.isEntryScreenActive = false;
         }
 
-        private List<int> ReadUnknownChannels()
+        private List<int> ReadUnknownChannels(out bool hasFullChannel)
         {
             List<int> channels = new List<int>();
+            hasFullChannel = false;
             for (int channel = 1; channel <= ENTRY_CHANNEL_COUNT; channel++)
             {
                 string status = ReadChannelStatus(channel);
@@ -338,8 +359,35 @@ namespace MusicPlayerApp.Sources.GameHandler
                 {
                     channels.Add(channel);
                 }
+                else if (status.IndexOf("dolu", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    status.IndexOf("kalabal", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    hasFullChannel = true;
+                }
             }
             return channels;
+        }
+
+        private int ReselectNiteAndTryRandomChannel()
+        {
+            if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return 0;
+
+            Point niteServerPoint = coordinates.PointNiteServer();
+            inputGame.MouseMoveAndPressLeft(niteServerPoint.X, niteServerPoint.Y);
+            Thread.Sleep(500);
+
+            if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return 0;
+
+            int selectedChannel = TimerGame.MakeRandomValue(1, ENTRY_CHANNEL_COUNT + 1);
+            Point channelPoint = coordinates.PointChannel(selectedChannel);
+            inputGame.MouseMoveAndPressLeft(channelPoint.X, channelPoint.Y);
+            Thread.Sleep(250);
+            inputGame.MouseMoveAndPressLeft(coordinates.PointOkButton().X,
+                coordinates.PointOkButton().Y);
+
+            FileLogger.Info("Nite sunucusu Dolu/Kalabalık CH nedeniyle yeniden seçildi; " +
+                "500 ms sonra CH" + selectedChannel + " ve Tamam tıklandı");
+            return selectedChannel;
         }
 
         private string ReadChannelStatus(int channelNumber)
@@ -385,6 +433,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                         .Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
                     if (normalized.Contains("bilinmeyen")) return "Bilinmeyen";
                     if (normalized.Contains("dolu")) return "Dolu";
+                    if (normalized.Contains("kalabal")) return "Kalabalık";
                 }
                 catch (Exception ex)
                 {
