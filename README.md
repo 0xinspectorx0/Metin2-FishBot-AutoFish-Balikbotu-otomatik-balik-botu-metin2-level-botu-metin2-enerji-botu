@@ -212,6 +212,13 @@ sürüm yayımlarken:
 
 ## SÜRÜM GEÇMİŞİ
 
+### 1.0.5 — Mola sayacı düzeltmesi
+
+- Gerçek balıkçılık mola döngüsü `SleepRandomMinute` üzerinden çalıştığından, mola sayacı artık bu noktada başlatılıyor.
+- Rastgele seçilen tek mola süresi hem bekleme hem sayaç için kullanılıyor; mola bitince sayaç güvenle temizleniyor.
+
+### 1.0.4 — Zamanlayıcı sayaçları
+
 ### 1.0.4 — Zamanlayıcı sayaçları
 
 - Zamanlayıcı açıkken toplam süre, çalışma dönemi ve mola için kalan süre arayüzde canlı sayaç olarak gösterilir.
@@ -264,7 +271,7 @@ sürüm yayımlarken:
 - Boş olay işleyicileri (`tabPage1_Click`, `label21_Click`, `groupBox1_Enter`, `label27_Click`) ve ölü kod kaldırıldı.
 - `Zamanlayıcı Aktif Et` kutusu artık klavye ile işaretlendiğinde de çalışıyor (boş `CheckedChanged` yerine gerçek işleyiciye bağlı).
 - `app.manifest` eklendi: `requireAdministrator`, `PerMonitorV2` DPI bildirimi, desteklenen işletim sistemleri ve Common Controls v6.
-- Sürüm bilgisi tek kaynağa indirildi (`AssemblyFileVersion` = `version.txt` = `1.0.4`).
+- Sürüm bilgisi tek kaynağa indirildi (`AssemblyFileVersion` = `version.txt` = `1.0.5`).
 - Dosya günlükçüsü eklendi: `Logs/bot-yyyyMMdd.log`.
 
 ### 2.3 (11.09.2024)

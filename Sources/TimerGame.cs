@@ -312,23 +312,36 @@ namespace MusicPlayerApp.Sources
         /// </summary>
         public static void SleepRandomMinute(int minValue, int maxValue)
         {
-            int oneMinuteFromMilis = 60 * 1000;
-            long waitTime = (long)MakeRandomValue(minValue, maxValue) * oneMinuteFromMilis;
+            int selectedBreakMinutes = MakeRandomValue(minValue, maxValue);
+            long oneMinuteFromMilis = 60L * 1000L;
+            long waitTime = (long)selectedBreakMinutes * oneMinuteFromMilis;
 
-            // Uzun beklemeler parçalara bölünür; böylece DURDUR isteği anında fark edilir.
-            const long sliceMilliseconds = 1000L;
-            long remaining = waitTime;
-            while (remaining > 0)
+            // Gerçek balıkçılık molası bu metottan geçtiği için sayaç da aynı
+            // rastgele seçilen süreyle burada başlatılmalıdır.
+            StartBreakCountdownDisplay(selectedBreakMinutes);
+            FileLogger.Info("Mola başladı; seçilen süre: " + selectedBreakMinutes + " dakika");
+
+            try
             {
-                if (ThreadGlobals.CheckGameIsStopped())
+                // Uzun beklemeler parçalara bölünür; böylece DURDUR isteği anında fark edilir.
+                const long sliceMilliseconds = 1000L;
+                long remaining = waitTime;
+                while (remaining > 0)
                 {
-                    FileLogger.Info("SleepRandomMinute: bot durdurulduğu için bekleme yarıda kesildi");
-                    return;
-                }
+                    if (ThreadGlobals.CheckGameIsStopped())
+                    {
+                        FileLogger.Info("SleepRandomMinute: bot durdurulduğu için bekleme yarıda kesildi");
+                        return;
+                    }
 
-                int sleepTime = (int)Math.Min(sliceMilliseconds, remaining);
-                Thread.Sleep(sleepTime);
-                remaining -= sleepTime;
+                    int sleepTime = (int)Math.Min(sliceMilliseconds, remaining);
+                    Thread.Sleep(sleepTime);
+                    remaining -= sleepTime;
+                }
+            }
+            finally
+            {
+                EndBreakCountdownDisplay();
             }
         }
 
