@@ -140,7 +140,7 @@ namespace MusicPlayerApp
             this.tabControlTelegram.Location = new System.Drawing.Point(0, 0);
             this.tabControlTelegram.Name = "tabControlTelegram";
             this.tabControlTelegram.SelectedIndex = 0;
-            this.tabControlTelegram.Size = new System.Drawing.Size(503, 472);
+            this.tabControlTelegram.Size = new System.Drawing.Size(503, 496);
             this.tabControlTelegram.TabIndex = 0;
             // 
             // tabPageFishing
@@ -239,10 +239,10 @@ namespace MusicPlayerApp
             // 
             // buttonCheckChat
             // 
-            this.buttonCheckChat.Location = new System.Drawing.Point(167, 193);
+            this.buttonCheckChat.Location = new System.Drawing.Point(154, 194);
             this.buttonCheckChat.Margin = new System.Windows.Forms.Padding(2);
             this.buttonCheckChat.Name = "buttonCheckChat";
-            this.buttonCheckChat.Size = new System.Drawing.Size(107, 20);
+            this.buttonCheckChat.Size = new System.Drawing.Size(120, 20);
             this.buttonCheckChat.TabIndex = 51;
             this.buttonCheckChat.Text = "Sohbeti Denetle";
             this.buttonCheckChat.UseVisualStyleBackColor = true;
@@ -250,7 +250,7 @@ namespace MusicPlayerApp
             // 
             // textBoxMinMaxBreak
             // 
-            this.textBoxMinMaxBreak.Location = new System.Drawing.Point(251, 132);
+            this.textBoxMinMaxBreak.Location = new System.Drawing.Point(260, 132);
             this.textBoxMinMaxBreak.Name = "textBoxMinMaxBreak";
             this.textBoxMinMaxBreak.Size = new System.Drawing.Size(39, 20);
             this.textBoxMinMaxBreak.TabIndex = 50;
@@ -268,7 +268,7 @@ namespace MusicPlayerApp
             // 
             // textBoxStopGameTime
             // 
-            this.textBoxStopGameTime.Location = new System.Drawing.Point(251, 160);
+            this.textBoxStopGameTime.Location = new System.Drawing.Point(260, 160);
             this.textBoxStopGameTime.Name = "textBoxStopGameTime";
             this.textBoxStopGameTime.Size = new System.Drawing.Size(39, 20);
             this.textBoxStopGameTime.TabIndex = 48;
@@ -295,7 +295,7 @@ namespace MusicPlayerApp
             this.label6.AutoSize = true;
             this.label6.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.label6.ForeColor = System.Drawing.Color.Red;
-            this.label6.Location = new System.Drawing.Point(149, 162);
+            this.label6.Location = new System.Drawing.Point(154, 162);
             this.label6.Name = "label6";
             this.label6.Size = new System.Drawing.Size(100, 16);
             this.label6.TabIndex = 45;
@@ -326,7 +326,7 @@ namespace MusicPlayerApp
             this.checkBoxEnableTime.AutoSize = true;
             this.checkBoxEnableTime.Font = new System.Drawing.Font("Microsoft Sans Serif", 9.75F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.checkBoxEnableTime.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(255)))), ((int)(((byte)(128)))), ((int)(((byte)(0)))));
-            this.checkBoxEnableTime.Location = new System.Drawing.Point(13, 133);
+            this.checkBoxEnableTime.Location = new System.Drawing.Point(15, 133);
             this.checkBoxEnableTime.Name = "checkBoxEnableTime";
             this.checkBoxEnableTime.Size = new System.Drawing.Size(142, 20);
             this.checkBoxEnableTime.TabIndex = 42;
@@ -417,18 +417,18 @@ namespace MusicPlayerApp
             this.labelStartStatus.AutoSize = true;
             this.labelStartStatus.Font = new System.Drawing.Font("Microsoft Sans Serif", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.labelStartStatus.ForeColor = System.Drawing.Color.Red;
-            this.labelStartStatus.Location = new System.Drawing.Point(11, 291);
+            this.labelStartStatus.Location = new System.Drawing.Point(15, 291);
             this.labelStartStatus.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.labelStartStatus.Name = "labelStartStatus";
             this.labelStartStatus.Size = new System.Drawing.Size(57, 24);
             this.labelStartStatus.TabIndex = 29;
             this.labelStartStatus.Text = "Hazır";
-            this.labelStartStatus.TextAlign = System.Drawing.ContentAlignment.TopCenter;
+            this.labelStartStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
             // 
             // buttonFishingStart
             //
             this.buttonFishingStart.Font = new System.Drawing.Font("Microsoft Sans Serif", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
-            this.buttonFishingStart.Location = new System.Drawing.Point(15, 231);
+            this.buttonFishingStart.Location = new System.Drawing.Point(15, 234);
             this.buttonFishingStart.Margin = new System.Windows.Forms.Padding(2);
             this.buttonFishingStart.Name = "buttonFishingStart";
             this.buttonFishingStart.Size = new System.Drawing.Size(130, 40);
@@ -1121,7 +1121,11 @@ namespace MusicPlayerApp
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(503, 472);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
+            this.MaximizeBox = false;
+            this.MinimizeBox = true;
+            this.SizeGripStyle = System.Windows.Forms.SizeGripStyle.Hide;
+            this.ClientSize = new System.Drawing.Size(503, 496);
             this.Controls.Add(this.tabControlTelegram);
             this.ForeColor = System.Drawing.SystemColors.Highlight;
             this.Margin = new System.Windows.Forms.Padding(2);
