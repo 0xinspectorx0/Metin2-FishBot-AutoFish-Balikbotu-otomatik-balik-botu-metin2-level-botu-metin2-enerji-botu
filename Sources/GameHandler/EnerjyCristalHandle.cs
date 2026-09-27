@@ -472,11 +472,7 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
                         DebugPfCnsl.println("Elapsed Time = " + watch.ElapsedMilliseconds);
 
 
-                        /*  DebugDrawingHandle.SetStaticRectangle(new Rectangle (x + coordinate.RectMetin2GameScreen().X + CheckGameCoordinate.currentScreenGamePoint.X,
-                              y + coordinate.RectMetin2GameScreen().Y + CheckGameCoordinate.currentScreenGamePoint.Y,
-                             coordinate.RectFisherSample().Width, coordinate.RectFisherSample().Height));
 
-                          Application.Run(new FullScreen());*/
 
 
                         int xClickPos = x + coordinate.RectMetin2GameScreen().X + (coordinate.RectSilahciSample().Width / 2) + CheckGameCoordinate.currentScreenGamePoint.X;

@@ -13,11 +13,9 @@ namespace MusicPlayerApp.Sources
     public enum PathWayStruct
     {
         PATH_STANDART,
-        PATH_DESTKOP,
         PATH_IMAGE,
         PATH_FISHES,
         PATH_CHAT_ALPHABETS,
-        PATH_TESTIMAGES,
         PATH_CHAT_Q_A,
         PATH_SCREENSHOTS
     }
@@ -165,9 +163,6 @@ namespace MusicPlayerApp.Sources
                     path = fileName;
                     break;
 
-                case PathWayStruct.PATH_DESTKOP:
-                    path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), fileName);
-                    break;
 
                 case PathWayStruct.PATH_IMAGE:
                     path = PathWantedWayFromBase(fileName, new string[] { "Images" });
@@ -177,9 +172,6 @@ namespace MusicPlayerApp.Sources
                     path = PathWantedWayFromBase(fileName, new string[] { "ChatResources", "GameAlphabets" });
                     break;
 
-                case PathWayStruct.PATH_TESTIMAGES:
-                    path = PathWantedWayFromBase(fileName, new string[] { "TestImages" });
-                    break;
 
                 case PathWayStruct.PATH_CHAT_Q_A:
                     path = PathWantedWayFromBase(fileName, new string[] { "ChatResources", "ChatQuestionAnswer" });

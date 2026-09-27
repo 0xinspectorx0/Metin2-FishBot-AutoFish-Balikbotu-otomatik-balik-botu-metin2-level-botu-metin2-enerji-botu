@@ -61,7 +61,6 @@ namespace MusicPlayerApp.Sources
         private const int IDLE_SLEEP_MILLISECONDS = 200;
 
         private ScreenShotWinAPI screenShot;
-        private DebugDrawingHandle debugScreen;
 
         private ImageObjects imageObject;
         private FishingHandle fishing;
@@ -89,16 +88,15 @@ namespace MusicPlayerApp.Sources
             // imageObject null gelirse singleton kullanılır; referans PNG'ler yeniden yüklenmez.
             this.imageObject = imageObject ?? ImageObjects.Instance;
 
+            gameWords = new GameAlphabetDetecter(this.imageObject);
             fishing = new FishingHandle(this.imageObject);
-            gameStatus = new CheckGameStatus(this.imageObject);
+            gameStatus = new CheckGameStatus(this.imageObject, gameWords);
             coordinates = new GameObjectCoordinates(this.imageObject);
             screenShot = new ScreenShotWinAPI();
-            debugScreen = new DebugDrawingHandle();
             charThings = new CharSpecialThings(this.imageObject);
             timeGeneral = new TimerGame();
             chatting = new Chatting(this.imageObject);
             inputGame = new GameInputHandler();
-            gameWords = new GameAlphabetDetecter(this.imageObject);
             charInfo = new CharInfo(this.imageObject);
             chatSentencer = new ChatSentencer();
             playersHandle = new PlayersHandler(this.imageObject);

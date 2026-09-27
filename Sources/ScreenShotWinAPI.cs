@@ -404,66 +404,6 @@ namespace MusicPlayerApp.Sources
             }
         }
 
-        /// <summary>
-        /// Tam ekran goruntusunden belirtilen bolgeyi kirpar ve PNG olarak kaydeder.
-        /// </summary>
-        public static void EditBipMapEndSave(Bitmap fullScreenBitMap, Rectangle rect, string fileName, PathWayStruct pathWay)
-        {
-            if (fullScreenBitMap == null || fullScreenBitMap.Width <= 0 || fullScreenBitMap.Height <= 0)
-            {
-                FileLogger.Warning("EditBipMapEndSave: kaynak bitmap null veya bos");
-                return;
-            }
-            if (rect.Width <= 0 || rect.Height <= 0)
-            {
-                FileLogger.Warning("EditBipMapEndSave: kirpma alani gecersiz " + Describe(rect));
-                return;
-            }
-
-            try
-            {
-                using (Bitmap bitmapResult = fullScreenBitMap.Clone(rect, fullScreenBitMap.PixelFormat))
-                {
-                    FileHandler.SaveImageAsPng(bitmapResult, fileName, pathWay);
-                }
-            }
-            catch (OutOfMemoryException outEx)
-            {
-                FileLogger.Error("EditBipMapEndSave: bellek yetersiz (GDI limitine ulasilmis olabilir)", outEx);
-            }
-            catch (Exception ex)
-            {
-                FileLogger.Error("EditBipMapEndSave basarisiz", ex);
-            }
-        }
-
-        /// <summary>
-        /// Bitmap'in belirtilen bolgesini kirpar. Basarisiz olursa <c>null</c> doner.
-        /// Cagiran taraf donen bitmap'i dispose etmelidir.
-        /// </summary>
-        public Bitmap ClipBitmap(Bitmap fullScreenBitmap, Rectangle rect)
-        {
-            if (fullScreenBitmap == null || fullScreenBitmap.Width <= 0)
-            {
-                return null;
-            }
-            if (rect.Width <= 0 || rect.Height <= 0)
-            {
-                FileLogger.Warning("ClipBitmap: kirpma alani gecersiz " + Describe(rect));
-                return null;
-            }
-
-            try
-            {
-                return fullScreenBitmap.Clone(rect, fullScreenBitmap.PixelFormat);
-            }
-            catch (Exception ex)
-            {
-                FileLogger.Error("ClipBitmap basarisiz", ex);
-                return null;
-            }
-        }
-
         private bool IsRectangleValid(Rectangle rect, string callerName)
         {
             if (rect == Rectangle.Empty || rect.Width <= 0 || rect.Height <= 0)

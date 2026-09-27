@@ -202,11 +202,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                         DebugPfCnsl.println("Elapsed Time = " + watch.ElapsedMilliseconds);
 
 
-                      /*  DebugDrawingHandle.SetStaticRectangle(new Rectangle (x + coordinate.RectMetin2GameScreen().X + CheckGameCoordinate.currentScreenGamePoint.X,
-                            y + coordinate.RectMetin2GameScreen().Y + CheckGameCoordinate.currentScreenGamePoint.Y,
-                           coordinate.RectFisherSample().Width, coordinate.RectFisherSample().Height));
 
-                        Application.Run(new FullScreen());*/
 
 
                         int xClickPos = x + coordinate.RectMetin2GameScreen().X + (coordinate.RectFisherSample().Width / 2) + CheckGameCoordinate.currentScreenGamePoint.X;
@@ -796,7 +792,6 @@ namespace MusicPlayerApp.Sources.GameHandler
 
             if(kampAtesiIconInvent != null && kampAtesiIconInvent.Length > 0)
             {
-                //DebugDrawingHandle.DrawWantedObjectToScreen(kampAtesiIconInvent);
 
                 bool[] sourceKampAtesiGreen = imageObjects.RecordWantedColorAsBool(ColorGame.MAP_CAMP_FIRE_GREEN,
                     imageObjects.arrayKampAtesiWords);

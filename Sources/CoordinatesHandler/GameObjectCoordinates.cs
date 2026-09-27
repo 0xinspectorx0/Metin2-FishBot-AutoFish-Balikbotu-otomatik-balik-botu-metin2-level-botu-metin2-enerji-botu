@@ -427,10 +427,39 @@ namespace MusicPlayerApp.Sources
             Point currentMetin2Icon = CheckGameScreenPlace();
             return new Point(469 + currentMetin2Icon.X, 85 + currentMetin2Icon.Y);
         }
-        public Point PointChSix()
+        /// <summary>
+        /// Server seçim ekranındaki Nite satırının tıklama noktası.
+        /// Koordinatlar oyun penceresinin sol üst referansına göredir.
+        /// </summary>
+        public Point PointNiteServer()
         {
             Point currentMetin2Icon = CheckGameScreenPlace();
-            return new Point(496+ currentMetin2Icon.X, 291 + currentMetin2Icon.Y);
+            return new Point(275 + currentMetin2Icon.X, 206 + currentMetin2Icon.Y);
+        }
+
+        /// <summary>CH1-CH6 satırının tıklama noktası.</summary>
+        public Point PointChannel(int channelNumber)
+        {
+            if (channelNumber < 1 || channelNumber > 6)
+            {
+                throw new ArgumentOutOfRangeException("channelNumber");
+            }
+
+            Point currentMetin2Icon = CheckGameScreenPlace();
+            return new Point(496 + currentMetin2Icon.X,
+                291 - ((6 - channelNumber) * 17) + currentMetin2Icon.Y);
+        }
+
+        /// <summary>Bir kanal satırındaki Dolu/Bilinmeyen durum metninin alanı.</summary>
+        public Rectangle RectChannelStatus(int channelNumber)
+        {
+            Point channelPoint = PointChannel(channelNumber);
+            return new Rectangle(channelPoint.X - 3, channelPoint.Y - 7, 68, 15);
+        }
+
+        public Point PointChSix()
+        {
+            return PointChannel(6);
         }
         public Point PointFisherShopCloseButton()
         {

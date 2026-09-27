@@ -1,4 +1,5 @@
 ﻿using Metin2AutoFishCSharp.Sources;
+using Metin2AutoFishCSharp.Sources.ChatHandler;
 using Metin2AutoFishCSharp.Sources.GameHandler;
 using Metin2AutoFishCSharp.Sources.LevelAndFarms;
 using MusicPlayerApp.Debugs;
@@ -45,12 +46,12 @@ namespace MusicPlayerApp.Sources.GameHandler
         LevelHandle levelHandle;
        
         private DebugPfCnsl debugConsole;
+        private readonly GameAlphabetDetecter alphabetDetecter;
 
-        private static int ChannelValue = 0;
-
-        public CheckGameStatus(ImageObjects imageObjects)
+        public CheckGameStatus(ImageObjects imageObjects, GameAlphabetDetecter alphabetDetecter)
         {
             this.imageObjects = imageObjects;
+            this.alphabetDetecter = alphabetDetecter;
             coordinates = new GameObjectCoordinates(imageObjects);
             screenShot = new ScreenShotWinAPI();       
             inputGame = new GameInputHandler();
@@ -255,52 +256,165 @@ namespace MusicPlayerApp.Sources.GameHandler
             
         }
 
+        private const int ENTRY_CHANNEL_COUNT = 6;
+        private const int ENTRY_RECHECK_SECONDS = 30;
+        private const int ENTRY_CHANNEL_CONNECT_TIMEOUT_SECONDS = 20;
+
         private void EntryScreenHandle()
         {
             if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
 
-            TimerGame timeGame = new TimerGame();
             TimerGame timeAlertUser = new TimerGame();
+            HashSet<int> attemptedChannels = new HashSet<int>();
 
-            int randomChannelValue = TimerGame.MakeRandomValue(0, 4);
+            // Önce sol listedeki Nite sunucusunu bir kez seç; ardından kanal durumlarını oku.
+            Point niteServerPoint = coordinates.PointNiteServer();
+            inputGame.MouseMoveAndPressLeft(niteServerPoint.X, niteServerPoint.Y);
+            Thread.Sleep(1000);
 
-            inputGame.MouseMoveAndPressLeft(coordinates.PointChSix().X, 
-                coordinates.PointChSix().Y - ( randomChannelValue* 17));
-            inputGame.MouseMoveAndPressLeft(coordinates.PointOkButton().X,
-                coordinates.PointOkButton().Y );
-
-            timeGame.SetStartedSecondTime();
-
-            while (imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayEntryScreen,
-                screenShot.ImageArraySpecifiedArea(coordinates.RectEntryScreen()), 
-                ImageSensibilityLevel.SENSIBILTY_HIGH))
+            while (IsEntryScreenVisible())
             {
-                if(ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
+                if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
 
-                if(!timeGame.CheckDelayTimeInSecond(9))
+                List<int> availableChannels = ReadUnknownChannels();
+                List<int> channelsToTry = availableChannels
+                    .Where(channel => !attemptedChannels.Contains(channel))
+                    .ToList();
+
+                if (channelsToTry.Count == 0)
                 {
-                    inputGame.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
-                    randomChannelValue = TimerGame.MakeRandomValue(0, 4);
-                    inputGame.MouseMoveAndPressLeft(coordinates.PointChSix().X,
-                coordinates.PointChSix().Y - (randomChannelValue * 17));
-                    inputGame.MouseMoveAndPressLeft(coordinates.PointOkButton().X,
-                        coordinates.PointOkButton().Y);
-                    timeGame.SetStartedSecondTime();
+                    if (attemptedChannels.Count > 0)
+                    {
+                        attemptedChannels.Clear();
+                    }
 
+                    FileLogger.Info("Nite sunucusunda Bilinmeyen durumunda uygun CH yok; " +
+                        ENTRY_RECHECK_SECONDS + " saniye sonra yeniden kontrol edilecek");
+                    WaitWhileEntryScreen(ENTRY_RECHECK_SECONDS);
+
+                    if (!timeAlertUser.CheckDelayTimeInSecond(30))
+                    {
+                        TelegramBot.SendMessageTelegram(
+                            "Nite sunucusundaki CH durumları Dolu veya okunamıyor; yeniden kontrol ediliyor.");
+                        timeAlertUser.SetStartedSecondTime();
+                    }
+                    continue;
                 }
-               
-                if(!timeAlertUser.CheckDelayTimeInSecond(30))
+
+                int selectedChannel = channelsToTry[TimerGame.MakeRandomValue(0, channelsToTry.Count)];
+                Point channelPoint = coordinates.PointChannel(selectedChannel);
+                inputGame.MouseMoveAndPressLeft(channelPoint.X, channelPoint.Y);
+                Thread.Sleep(250);
+                inputGame.MouseMoveAndPressLeft(coordinates.PointOkButton().X,
+                    coordinates.PointOkButton().Y);
+                attemptedChannels.Add(selectedChannel);
+                FileLogger.Info("Nite sunucusunda Bilinmeyen durumundaki CH" + selectedChannel +
+                    " rastgele seçildi; giriş bekleniyor");
+
+                // Bağlantı ekranı kapanana kadar bekle; başarısızsa başka uygun CH'yi dene.
+                TimerGame connectionTimer = new TimerGame();
+                while (connectionTimer.CheckDelayTimeInSecond(ENTRY_CHANNEL_CONNECT_TIMEOUT_SECONDS) &&
+                    IsEntryScreenVisible())
                 {
-                    TelegramBot.SendMessageTelegram("30 saniyeden beri giriş ekranında duruyor.Kontrol et");
-                    timeAlertUser.SetStartedSecondTime();
+                    if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
+                    Thread.Sleep(500);
                 }
             }
 
             ThreadGlobals.isEntryScreenActive = false;
-           
-
         }
-       private void CloseSaleTitle()
+
+        private List<int> ReadUnknownChannels()
+        {
+            List<int> channels = new List<int>();
+            for (int channel = 1; channel <= ENTRY_CHANNEL_COUNT; channel++)
+            {
+                string status = ReadChannelStatus(channel);
+                FileLogger.Debug("Nite CH" + channel + " durumu: " +
+                    (string.IsNullOrEmpty(status) ? "okunamadı" : status));
+
+                if (status.IndexOf("bilinmeyen", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    channels.Add(channel);
+                }
+            }
+            return channels;
+        }
+
+        private string ReadChannelStatus(int channelNumber)
+        {
+            Rectangle statusArea = coordinates.RectChannelStatus(channelNumber);
+            int[] statusPixels = screenShot.CaptureAreaAsArray(statusArea);
+            if (statusPixels == null || statusPixels.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            // Durum yazılarının rengi sunucu arayüzü temasına göre değişebildiğinden,
+            // satırdaki baskın parlak metin renkleri OCR için aday olarak denenir.
+            Dictionary<int, int> colorCounts = new Dictionary<int, int>();
+            foreach (int pixel in statusPixels)
+            {
+                int color = pixel & 0x00FFFFFF;
+                int red = (color >> 16) & 0xFF;
+                int green = (color >> 8) & 0xFF;
+                int blue = color & 0xFF;
+                if (red + green + blue < 180) continue;
+
+                int count;
+                colorCounts.TryGetValue(color, out count);
+                colorCounts[color] = count + 1;
+            }
+
+            int maxColorPixels = statusPixels.Length / 3;
+            int[] candidateColors = colorCounts
+                .Where(item => item.Value >= 2 && item.Value <= maxColorPixels)
+                .OrderByDescending(item => item.Value)
+                .Take(4)
+                .Select(item => unchecked((int)(0xFF000000 | (uint)item.Key)))
+                .ToArray();
+
+            foreach (int color in candidateColors)
+            {
+                try
+                {
+                    string detected = alphabetDetecter.DetectGameTextWithProvidedImage(
+                        statusPixels, statusArea, color);
+                    string normalized = new string((detected ?? string.Empty)
+                        .Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+                    if (normalized.Contains("bilinmeyen")) return "Bilinmeyen";
+                    if (normalized.Contains("dolu")) return "Dolu";
+                }
+                catch (Exception ex)
+                {
+                    FileLogger.Debug("CH" + channelNumber + " OCR adayı okunamadı: " + ex.Message);
+                }
+            }
+
+            return string.Empty;
+        }
+
+        private bool IsEntryScreenVisible()
+        {
+            return imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayEntryScreen,
+                screenShot.CaptureAreaAsArray(coordinates.RectEntryScreen()),
+                ImageSensibilityLevel.SENSIBILTY_HIGH);
+        }
+
+        private void WaitWhileEntryScreen(int seconds)
+        {
+            int remainingMilliseconds = seconds * 1000;
+            const int sleepSliceMilliseconds = 500;
+            while (remainingMilliseconds > 0 && IsEntryScreenVisible())
+            {
+                if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
+                int sleepMilliseconds = Math.Min(sleepSliceMilliseconds, remainingMilliseconds);
+                Thread.Sleep(sleepMilliseconds);
+                remainingMilliseconds -= sleepMilliseconds;
+            }
+        }
+
+        private void CloseSaleTitle()
        {
             int[] targetSaleTitle = screenShot.ImageArraySpecifiedArea(coordinates.RectSaleCross());
 

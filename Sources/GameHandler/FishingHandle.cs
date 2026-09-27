@@ -491,7 +491,6 @@ namespace MusicPlayerApp.Sources.GameHandler
                 robotFishing.MouseMoveQuickly((coordinates.RectFishClickArea().X + xPos),
                        (coordinates.RectFishClickArea().Y + yPos));
                 storeAttempt++;
-                //  DebugDrawingHandle.DrawWantedObjectToScreen(new Rectangle((coordinates.RectFishClickArea().X + xPos),
                 //      (coordinates.RectFishClickArea().Y + yPos), 15, 15));
             }
             else if (storeAttempt == 1)
@@ -503,7 +502,6 @@ namespace MusicPlayerApp.Sources.GameHandler
                 robotFishing.MouseMoveQuickly((coordinates.RectFishClickArea().X + xPos),
                         (coordinates.RectFishClickArea().Y + yPos));
                 storeAttempt++;
-                // DebugDrawingHandle.DrawWantedObjectToScreen(new Rectangle((coordinates.RectFishClickArea().X + xPos),
                 //    (coordinates.RectFishClickArea().Y + yPos), 15, 15));
             }
 

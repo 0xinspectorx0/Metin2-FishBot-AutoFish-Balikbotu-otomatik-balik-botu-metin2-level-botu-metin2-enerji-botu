@@ -60,17 +60,8 @@ namespace MusicPlayerApp
             this.checkBoxPalamut = new System.Windows.Forms.CheckBox();
             this.checkBoxAltinSudak = new System.Windows.Forms.CheckBox();
             this.checkBoxYabbie = new System.Windows.Forms.CheckBox();
-            this.label3 = new System.Windows.Forms.Label();
-            this.comboBoxPathWays = new System.Windows.Forms.ComboBox();
-            this.label2 = new System.Windows.Forms.Label();
-            this.label1 = new System.Windows.Forms.Label();
-            this.textBoxFileName = new System.Windows.Forms.TextBox();
-            this.textBoxRect = new System.Windows.Forms.TextBox();
-            this.buttonQuickSS = new System.Windows.Forms.Button();
             this.labelStartStatus = new System.Windows.Forms.Label();
             this.buttonFishingStart = new System.Windows.Forms.Button();
-            this.pictureBoxMainForm = new System.Windows.Forms.PictureBox();
-            this.buttonScreenShot = new System.Windows.Forms.Button();
             this.tabPage2 = new System.Windows.Forms.TabPage();
             this.checkBoxETPPickUp = new System.Windows.Forms.CheckBox();
             this.label29 = new System.Windows.Forms.Label();
@@ -131,7 +122,6 @@ namespace MusicPlayerApp
             this.checkBoxPCSlow = new System.Windows.Forms.CheckBox();
             this.tabControlTelegram.SuspendLayout();
             this.tabPageFishing.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.pictureBoxMainForm)).BeginInit();
             this.tabPage2.SuspendLayout();
             this.groupBox1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarSp)).BeginInit();
@@ -175,17 +165,8 @@ namespace MusicPlayerApp
             this.tabPageFishing.Controls.Add(this.checkBoxPalamut);
             this.tabPageFishing.Controls.Add(this.checkBoxAltinSudak);
             this.tabPageFishing.Controls.Add(this.checkBoxYabbie);
-            this.tabPageFishing.Controls.Add(this.label3);
-            this.tabPageFishing.Controls.Add(this.comboBoxPathWays);
-            this.tabPageFishing.Controls.Add(this.label2);
-            this.tabPageFishing.Controls.Add(this.label1);
-            this.tabPageFishing.Controls.Add(this.textBoxFileName);
-            this.tabPageFishing.Controls.Add(this.textBoxRect);
-            this.tabPageFishing.Controls.Add(this.buttonQuickSS);
             this.tabPageFishing.Controls.Add(this.labelStartStatus);
             this.tabPageFishing.Controls.Add(this.buttonFishingStart);
-            this.tabPageFishing.Controls.Add(this.pictureBoxMainForm);
-            this.tabPageFishing.Controls.Add(this.buttonScreenShot);
             this.tabPageFishing.Location = new System.Drawing.Point(4, 22);
             this.tabPageFishing.Name = "tabPageFishing";
             this.tabPageFishing.Padding = new System.Windows.Forms.Padding(3);
@@ -427,83 +408,6 @@ namespace MusicPlayerApp
             this.checkBoxYabbie.UseVisualStyleBackColor = true;
             this.checkBoxYabbie.Click += new System.EventHandler(this.checkBoxsFishes_Click);
             // 
-            // label3
-            // 
-            this.label3.AutoSize = true;
-            this.label3.Font = new System.Drawing.Font("Microsoft Sans Serif", 10.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
-            this.label3.ForeColor = System.Drawing.Color.FromArgb(((int)(((byte)(192)))), ((int)(((byte)(0)))), ((int)(((byte)(0)))));
-            this.label3.Location = new System.Drawing.Point(309, 390);
-            this.label3.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
-            this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(80, 18);
-            this.label3.TabIndex = 36;
-            this.label3.Text = "Kayıt Yeri";
-            // 
-            // comboBoxPathWays
-            // 
-            this.comboBoxPathWays.FormattingEnabled = true;
-            this.comboBoxPathWays.Location = new System.Drawing.Point(312, 412);
-            this.comboBoxPathWays.Margin = new System.Windows.Forms.Padding(2);
-            this.comboBoxPathWays.Name = "comboBoxPathWays";
-            this.comboBoxPathWays.Size = new System.Drawing.Size(92, 21);
-            this.comboBoxPathWays.TabIndex = 35;
-            this.comboBoxPathWays.SelectedIndexChanged += new System.EventHandler(this.comboBoxPathWays_SelectedIndexChanged);
-            // 
-            // label2
-            // 
-            this.label2.AutoSize = true;
-            this.label2.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
-            this.label2.ForeColor = System.Drawing.Color.Blue;
-            this.label2.Location = new System.Drawing.Point(308, 329);
-            this.label2.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
-            this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(80, 20);
-            this.label2.TabIndex = 34;
-            this.label2.Text = "Dosya Adı";
-            // 
-            // label1
-            // 
-            this.label1.AutoSize = true;
-            this.label1.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
-            this.label1.ForeColor = System.Drawing.SystemColors.Desktop;
-            this.label1.Location = new System.Drawing.Point(165, 329);
-            this.label1.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
-            this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(114, 20);
-            this.label1.TabIndex = 33;
-            this.label1.Text = "Dikdörtgen Bilgisi";
-            // 
-            // textBoxFileName
-            // 
-            this.textBoxFileName.Location = new System.Drawing.Point(312, 355);
-            this.textBoxFileName.Margin = new System.Windows.Forms.Padding(2);
-            this.textBoxFileName.Name = "textBoxFileName";
-            this.textBoxFileName.Size = new System.Drawing.Size(93, 20);
-            this.textBoxFileName.TabIndex = 32;
-            this.textBoxFileName.Leave += new System.EventHandler(this.textBoxFileName_Leave);
-            // 
-            // textBoxRect
-            // 
-            this.textBoxRect.Location = new System.Drawing.Point(169, 355);
-            this.textBoxRect.Margin = new System.Windows.Forms.Padding(2);
-            this.textBoxRect.Name = "textBoxRect";
-            this.textBoxRect.Size = new System.Drawing.Size(139, 20);
-            this.textBoxRect.TabIndex = 31;
-            this.textBoxRect.Leave += new System.EventHandler(this.textBoxRect_Leave);
-            // 
-            // buttonQuickSS
-            // 
-            this.buttonQuickSS.Font = new System.Drawing.Font("Microsoft Sans Serif", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
-            this.buttonQuickSS.ForeColor = System.Drawing.Color.Teal;
-            this.buttonQuickSS.Location = new System.Drawing.Point(169, 396);
-            this.buttonQuickSS.Margin = new System.Windows.Forms.Padding(2);
-            this.buttonQuickSS.Name = "buttonQuickSS";
-            this.buttonQuickSS.Size = new System.Drawing.Size(130, 43);
-            this.buttonQuickSS.TabIndex = 30;
-            this.buttonQuickSS.Text = "Ekran Görüntüsü Al";
-            this.buttonQuickSS.UseVisualStyleBackColor = true;
-            this.buttonQuickSS.Click += new System.EventHandler(this.buttonQuickSS_Click);
-            // 
             // labelStartStatus
             // 
             this.labelStartStatus.AutoSize = true;
@@ -528,28 +432,6 @@ namespace MusicPlayerApp
             this.buttonFishingStart.Text = "BAŞLAT";
             this.buttonFishingStart.UseVisualStyleBackColor = true;
             this.buttonFishingStart.Click += new System.EventHandler(this.buttonFishingStartClick);
-            // 
-            // pictureBoxMainForm
-            // 
-            this.pictureBoxMainForm.Location = new System.Drawing.Point(7, 15);
-            this.pictureBoxMainForm.Margin = new System.Windows.Forms.Padding(2);
-            this.pictureBoxMainForm.Name = "pictureBoxMainForm";
-            this.pictureBoxMainForm.Size = new System.Drawing.Size(153, 424);
-            this.pictureBoxMainForm.SizeMode = System.Windows.Forms.PictureBoxSizeMode.CenterImage;
-            this.pictureBoxMainForm.TabIndex = 27;
-            this.pictureBoxMainForm.TabStop = false;
-            // 
-            // buttonScreenShot
-            // 
-            this.buttonScreenShot.Font = new System.Drawing.Font("Microsoft Sans Serif", 12F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
-            this.buttonScreenShot.Location = new System.Drawing.Point(175, 15);
-            this.buttonScreenShot.Margin = new System.Windows.Forms.Padding(2);
-            this.buttonScreenShot.Name = "buttonScreenShot";
-            this.buttonScreenShot.Size = new System.Drawing.Size(79, 63);
-            this.buttonScreenShot.TabIndex = 26;
-            this.buttonScreenShot.Text = "Tam Ekran Seç";
-            this.buttonScreenShot.UseVisualStyleBackColor = true;
-            this.buttonScreenShot.MouseClick += new System.Windows.Forms.MouseEventHandler(this.buttonScreenShot_MouseClick);
             // 
             // tabPage2
             // 
@@ -1223,7 +1105,6 @@ namespace MusicPlayerApp
             this.tabControlTelegram.ResumeLayout(false);
             this.tabPageFishing.ResumeLayout(false);
             this.tabPageFishing.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.pictureBoxMainForm)).EndInit();
             this.tabPage2.ResumeLayout(false);
             this.tabPage2.PerformLayout();
             this.groupBox1.ResumeLayout(false);
@@ -1257,17 +1138,8 @@ namespace MusicPlayerApp
         private System.Windows.Forms.CheckBox checkBoxPalamut;
         private System.Windows.Forms.CheckBox checkBoxAltinSudak;
         private System.Windows.Forms.CheckBox checkBoxYabbie;
-        private System.Windows.Forms.Label label3;
-        private System.Windows.Forms.ComboBox comboBoxPathWays;
-        private System.Windows.Forms.Label label2;
-        private System.Windows.Forms.Label label1;
-        private System.Windows.Forms.TextBox textBoxFileName;
-        private System.Windows.Forms.TextBox textBoxRect;
-        private System.Windows.Forms.Button buttonQuickSS;
         private System.Windows.Forms.Label labelStartStatus;
         private System.Windows.Forms.Button buttonFishingStart;
-        public System.Windows.Forms.PictureBox pictureBoxMainForm;
-        private System.Windows.Forms.Button buttonScreenShot;
         private System.Windows.Forms.Button buttonLevelStart;
         private System.Windows.Forms.TrackBar trackBarHp;
         private System.Windows.Forms.Label labelDex;

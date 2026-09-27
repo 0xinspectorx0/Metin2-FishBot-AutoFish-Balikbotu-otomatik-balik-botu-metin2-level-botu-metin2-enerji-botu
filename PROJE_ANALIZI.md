@@ -40,7 +40,7 @@ Uygulama oyunun belleğine hiç dokunmaz; tamamen **ekran görüntüsü + görü
    * Ortak durum: `Sources/Threads/ThreadGlobals.cs` içindeki ~40 `volatile bool` + `CanFishingRightNow()` / `CanLevelAndFarmRightNow()` / `CanEnergyCristalRightNow()` kapı fonksiyonları.
 7. **Zamanlama** — `Sources/TimerGame.cs`: `DateTimeOffset.UtcNow` tabanlı gecikme/geri sayım sayaçları, rastgele bekleme üreticileri, mola (break) mantığı, `IS_PC_SLOW` bayrağı.
 8. **Haberleşme** — `Sources/TelegramBot.cs` (uzaktan DURDUR + uyarı mesajları), `Sources/ChatHandler/*` (oyun içi chat/fısıltı OCR'ı: `GameAlphabetDetecter` harf şablonlarıyla metin çözer, `ChatSentencer` cümlelere böler, `ChatFileHandler` `ChatQuestAnswer.txt`'de `&` … `^` … bloklarıyla soru-cevap tutar).
-9. **UI** — `MainForm` (4 sekme: *Fishing*, *Level and Farm*, *Enerji kristali*, *Haberleşme ve Diğer*), `FullScreen` (debug çizim overlay), `ChatHandlerForm` (kelime/cevap yükleme).
+9. **UI** — `MainForm` (bot ayarları ve başlatma arayüzü), `ChatHandlerForm` (kelime/cevap yükleme). Manuel ekran görüntüsü aracı kaldırıldı; botun dahili ekran yakalaması korunuyor.
 
 ### Modül envanteri (satır sayıları)
 ```
@@ -59,7 +59,7 @@ Uygulama oyunun belleğine hiç dokunmaz; tamamen **ekran görüntüsü + görü
  195  Sources/ImageHandle/ImageObjects.cs         185  Sources/Threads/ThreadGlobals.cs
  166  Sources/Inputs/GameInputHandler.cs          162  Sources/Inputs/KeyboardTextInput.cs
  159  Sources/Debugs/DebugPfCnsl.cs               153  Sources/TelegramBot.cs
- 152  Sources/ChatHandler/ChatSentencer.cs        151  Sources/Debugs/DebugDrawingHandle.cs
+ 152  Sources/ChatHandler/ChatSentencer.cs
  141  Sources/GameHandler/PlayersHandler.cs       129  Sources/LevelAndFarms/SkillsHandler.cs
  116  Sources/CharacterHandle/CharInfo.cs          91  Sources/ImageHandle/ImagePathNames.cs
   90  Sources/CoordinatesHandler/CheckGameCoordinate.cs
@@ -229,7 +229,7 @@ public static int MakeRandomValue(int minValue, int maxValue) { ... Random rando
 
 | # | Madde | Durum |
 |---|---|---|
-| 5 | Bitmap/GDI yaşam döngüsü: `using` + `LockBits` + palet silme (H5, H6) | ✅ `ScreenShotWinAPI`, `ImageProcess`, `FileHandler`, `FullScreen`, `DebugPfCnsl` yeniden yazıldı; ölü `IsMatch(Bitmap,…)` kaldırıldı |
+| 5 | Bitmap/GDI yaşam döngüsü: `using` + `LockBits` + palet silme (H5, H6) | ✅ `ScreenShotWinAPI`, `ImageProcess`, `FileHandler`, `DebugPfCnsl` yeniden yazıldı (manuel `FullScreen` aracı bu değişiklikte kaldırıldı); ölü `IsMatch(Bitmap,…)` kaldırıldı |
 | 6 | T1/T2/T3 `try/catch` + global exception handler + dosya logu (H11) | ✅ `RunThreadSafely`, `Program.Main` handler'ları, `Sources/Debugs/FileLogger.cs` |
 | 7 | `SaveImageAsPng` null kontrolü (H4), tıklama Y parametresi (H1), minimap indeksi (H2) | ✅ Üçü de düzeltildi |
 | 8 | `GrillFishingHandle` dinamik + Denizkızı (H3) | ✅ `PrepareFishing.cs` yeniden yazıldı; sonsuz özyineleme sınırlandı |

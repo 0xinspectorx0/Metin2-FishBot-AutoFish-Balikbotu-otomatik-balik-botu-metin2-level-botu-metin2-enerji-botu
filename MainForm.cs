@@ -24,8 +24,6 @@ namespace MusicPlayerApp
 {
     public partial class MainForm : Form
     {
-        FullScreen fullScreen;
-        public static PictureBox pictureBox;
         public static Label labelCopyStartStatus;
         public static Label labelCopyLevelFarmStatus;
         public static Label labelCopyEnergyCristalStatus;
@@ -34,7 +32,6 @@ namespace MusicPlayerApp
         
         private ImageObjects imageObjects;
         private ThreadsHandler threadsHandler;
-        private ScreenShotWinAPI screenShot;
         private GameObjectCoordinates coor;
 
         private StatusStrip timerCountdownStatusStrip;
@@ -49,16 +46,7 @@ namespace MusicPlayerApp
         private bool isTelegramCheckChanging;
         //ChatHandlerForm chatHandlerForm;
 
-        private static FullScreen fullScreenStatic;
-        private volatile int [] arrayTextBoxResult = new int[5];
-        private volatile string fileName = null;
-        private volatile PathWayStruct pathWay;
 
-        readonly int rectX = 0;
-        readonly int rectY = 1;
-        readonly int rectWidth = 2;
-        readonly int rectHeight = 3;
-        readonly int timeSecondIndex = 4;
 
         [DllImport("user32.dll")]
         public static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
@@ -89,7 +77,7 @@ namespace MusicPlayerApp
                     "Program başlatılamadı." + Environment.NewLine + Environment.NewLine +
                     "Hata: " + ex.Message + Environment.NewLine + Environment.NewLine +
                     "Olası nedenler:" + Environment.NewLine +
-                    "  • Program klasöründeki ScreenShot altındaki .png dosyaları eksik veya taşınmış." + Environment.NewLine +
+                    "  • Program klasöründeki Images, Fishes veya ChatResources dosyaları eksik." + Environment.NewLine +
                     "  • Metin2 açık değil ya da ekran çözünürlüğü/ölçeklendirme (DPI) farklı." + Environment.NewLine +
                     "  • Program yönetici yetkisi olmadan çalıştırıldı." + Environment.NewLine + Environment.NewLine +
                     "Ayrıntılar günlük dosyasında: " + FileLogger.LogDirectory,
@@ -102,7 +90,7 @@ namespace MusicPlayerApp
 
         /// <summary>
         /// Formun çalışma zamanı bağımlılıklarını (görüntü işleme, iş parçacıkları,
-        /// koordinatlar, tam ekran penceresi, sıcak tuş) hazırlar.
+        /// koordinatlar ve sıcak tuş) hazırlar.
         /// </summary>
         /// <remarks>
         /// Kurucudan ayrıldı; böylece açılış hatası tek bir <c>try/catch</c> içinde
@@ -110,7 +98,6 @@ namespace MusicPlayerApp
         /// </remarks>
         private void InitializeForm()
         {
-            pictureBox = pictureBoxMainForm;
             labelCopyStartStatus = labelStartStatus;
             labelCopyLevelFarmStatus = labelLevelFarmStatus;
             labelCopyEnergyCristalStatus = labelEnergyCristal;
@@ -120,9 +107,7 @@ namespace MusicPlayerApp
             // `new ImageObjects()` çağrılıyordu; bu, ~70 PNG'yi ikinci kez okuyup her
             // biri için dispose edilmeyen Bitmap yaratıyordu (GDI nesne sızıntısı).
             imageObjects = ImageObjects.Instance;
-            screenShot = new ScreenShotWinAPI();
             threadsHandler = new ThreadsHandler(imageObjects);
-            fullScreenStatic = new FullScreen();
             coor = new GameObjectCoordinates(imageObjects);
             // Hotkey'i kaydet
             RegisterHotKey(this.Handle, MY_HOTKEY_ID, MOD_CONTROL, VK_O);
@@ -130,7 +115,6 @@ namespace MusicPlayerApp
 
 
 
-            LoadComboBox();
             LoadCheckBoxes();
             EnableOrDisableTimerCheckBox(false);
             InitializeTimerCountdownDisplay();
@@ -290,12 +274,6 @@ namespace MusicPlayerApp
                 MessageBox.Show("Balıkçılık aktifken Enerji kristal Start butonuna basamazsın", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-        private void buttonScreenShot_MouseClick(object sender, MouseEventArgs e)
-        {
-            fullScreen = new FullScreen();
-            DebugPfCnsl.println("buttonScreenShot_MouseClick is called");
-            fullScreen.Show();
-        }
 
         private void MainForm_Load(object sender, EventArgs e)
         {
@@ -309,133 +287,10 @@ namespace MusicPlayerApp
      
    
 
-        private void buttonQuickSS_Click(object sender, EventArgs e)
-        {
-            //new Thread( () =>
-            // {
-
-            if (fileName != null)
-            {
-                if (arrayTextBoxResult[rectWidth] <= 0)
-                {
-
-                    MessageBox.Show("Please enter specified number (Exmp: '10,20,100,50').", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    threadsHandler.HandleFormElement(textBoxRect, "1,1,1,1");
-                    return;
-                }
-
-                for (int decrease = arrayTextBoxResult[timeSecondIndex]; decrease > 0; decrease--)
-                {
-                    threadsHandler.HandleFormElement(labelStartStatus,
-                        decrease + " second later is taken ScreenShot");
-                    Thread.Sleep(1000);
-                }
-                //Don't forget the uncomment this and up codes
-                Rectangle rect = new Rectangle(arrayTextBoxResult[rectX], arrayTextBoxResult[rectY],
-                     arrayTextBoxResult[rectWidth], arrayTextBoxResult[rectHeight]);
-
-                if (rect.Width > 0 && rect.Height > 0)
-                {
-                    Bitmap resultBitMap = screenShot.CaptureSpecifiedScreen(rect);
-                    if (resultBitMap == null)
-                    {
-                        MessageBox.Show("Ekran görüntüsü alınamadı. Lütfen dikdörtgen " +
-                            "bilgilerini ekran çözünürlüğünüz ile karşılaştırın.",
-                            "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                        return;
-                    }
-
-                    // Onceki gorsel serbest birakilmazsa her cekimde bir bitmap birikir.
-                    Image previousImage = pictureBoxMainForm.Image;
-                    pictureBoxMainForm.Image = resultBitMap;
-                    if (previousImage != null)
-                    {
-                        previousImage.Dispose();
-                    }
-
-                    FileHandler.SaveImageAsPng(resultBitMap, fileName, pathWay);
-                }
-
-            }
-            else
-            {
-                MessageBox.Show("Lütfen geçerli bir dosya adı girin (örnek: test)", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                threadsHandler.HandleFormElement(textBoxFileName, "test");
-            }
-               
-
-                
-        //    }).Start();
-        }
 
 
-        private void textBoxRect_Leave(object sender, EventArgs e)
-        {
-          
-            // Girilen metni boşluklara göre ayırarak parçalara böl
-            string[] values = textBoxRect.Text.Split(new char[] { ' ',',','.' }, StringSplitOptions.RemoveEmptyEntries);
-
-            
-            // Eğer 4 adet sayı girişi varsa, dikdörtgeni oluştur ve kaydet
-            if (values.Length >= 4 && int.TryParse(values[rectX], out int x) && int.TryParse(values[rectY], out int y) &&
-                int.TryParse(values[rectWidth], out int width) && int.TryParse(values[rectHeight], out int height))
-            {
-                Rectangle bounds = Screen.PrimaryScreen.Bounds;
-                if( x > bounds.Width ||width >  bounds.Width || y > bounds.Height || height > bounds.Height )
-                {
-                    MessageBox.Show(" Width or Height that your determined is greater than your computer " +
-                        "screen resolution. Your resolution values = " + bounds.Width + " " + bounds.Height, "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-                arrayTextBoxResult[rectX] = x; arrayTextBoxResult[rectY] = y;
-                arrayTextBoxResult[rectWidth] = width; arrayTextBoxResult[rectHeight] = height;
 
 
-                if (values.Length == 5 && int.TryParse(values[timeSecondIndex], out int timeSecond))
-                {
-                    arrayTextBoxResult[timeSecondIndex] = timeSecond;
-                   
-                }
-                else if(values.Length == 5 && values[timeSecondIndex].Equals("-"))
-                {
-                   
-                    DebugDrawingHandle.SetStaticRectangle(new Rectangle(x, y, width, height));
-
-                }
-                else
-                {
-                    arrayTextBoxResult[timeSecondIndex] = 0;
-                }
-        
-            }
-            else
-            {
-                MessageBox.Show("Please enter specified number (Exmp: '10 20 100 50').", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void textBoxFileName_Leave(object sender, EventArgs e)
-        {
-            if(string.IsNullOrWhiteSpace(textBoxFileName.Text))
-            {
-                MessageBox.Show("Lütfen geçerli bir dosya adı girin (örnek: test)", "Hata", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                fileName = null;
-                return;
-            }
-            fileName = textBoxFileName.Text + ".png";
-            
-        }
-
-        private void LoadComboBox()
-        {
-            comboBoxPathWays.Items.Add("Desktop");
-            comboBoxPathWays.Items.Add("Fishes");
-            comboBoxPathWays.Items.Add("Images");
-            comboBoxPathWays.Items.Add("Metin2 Alphabets");
-            comboBoxPathWays.Items.Add("TestImages");
-            comboBoxPathWays.SelectedIndex = 0;
-            comboBoxPathWays.DropDownStyle = ComboBoxStyle.DropDownList;
-        }
 
         private void LoadCheckBoxes()
         {
@@ -464,38 +319,6 @@ namespace MusicPlayerApp
            
 
 
-        }
-        private void comboBoxPathWays_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            DebugPfCnsl.println("comboBoxPathWays_SelectedIndexChanged çalişti");
-            if (comboBoxPathWays.SelectedIndex != -1)
-            {
-                if(comboBoxPathWays.SelectedItem.ToString().Equals("Desktop"))
-                {
-                    DebugPfCnsl.println("Desktop");
-                    pathWay = PathWayStruct.PATH_DESTKOP;
-                }
-                else if (comboBoxPathWays.SelectedItem.ToString().Equals("Fishes"))
-                {
-                    DebugPfCnsl.println("Fishes");
-                    pathWay = PathWayStruct.PATH_FISHES;
-                }
-                else if (comboBoxPathWays.SelectedItem.ToString().Equals("Images"))
-                {
-                    DebugPfCnsl.println("Images");
-                    pathWay = PathWayStruct.PATH_IMAGE;
-                }
-                else if(comboBoxPathWays.SelectedItem.ToString().Equals("Metin2 Alphabets"))
-                {
-                    DebugPfCnsl.println("Metin2 Alphabets");
-                    pathWay= PathWayStruct.PATH_CHAT_ALPHABETS;
-                }
-                else if(comboBoxPathWays.SelectedItem.ToString().Equals("TestImages"))
-                {
-                    DebugPfCnsl.println("TestImages");
-                    pathWay= PathWayStruct.PATH_TESTIMAGES;
-                }
-            }
         }
 
         private void checkBoxsFishes_Click(object sender, EventArgs e)

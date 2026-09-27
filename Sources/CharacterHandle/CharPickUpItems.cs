@@ -23,7 +23,6 @@ namespace Metin2AutoFishCSharp.Sources.CharacterHandle
         private GameInputHandler inputs;
         private GameObjectCoordinates coor;
 
-        private int countFile = 0;
 
         private readonly string detectEjderhaTasi = "ejderha taşı";
         private readonly Rectangle rectEjderhaTasiSample = new Rectangle(0, 0, 93, 16);
@@ -64,7 +63,6 @@ namespace Metin2AutoFishCSharp.Sources.CharacterHandle
 
             bool mouseIsPressed = false;
            // DebugPfCnsl.println("ss çekildi filename = test"+ countFile++ +".png         ");
-            //FileHandler.SaveImageAsPng(bitmapTargetIcon, "test" + countFile++ + ".png", PathWayStruct.PATH_SCREENSHOTS);
             
 
             for (int x = 0; x < rectScanningArea.Width; x++)
@@ -139,7 +137,6 @@ namespace Metin2AutoFishCSharp.Sources.CharacterHandle
                             if(resulYellowRect != Rectangle.Empty)
                             {
                               // DebugPfCnsl.println("resulYellowRect = " + resulYellowRect.ToString() );
-                                // DebugDrawingHandle.DrawWantedObjectToScreen(resultRect);
                                 int[] clippedYellowCharName = imagesObject.ClipIntArray(clippedYellowName, rectCharNameBound, resulYellowRect);
 
                                 if (alphabetDetect.DetectGameTextWithProvidedImage(clippedYellowCharName, resulYellowRect,ColorGame.YELLOW_PICKUP_PLAYER_NAME).
@@ -152,7 +149,6 @@ namespace Metin2AutoFishCSharp.Sources.CharacterHandle
                                     {
                                         Rectangle rectItemWhite = new Rectangle(resulYellowRect.X - rectEjderhaTasiSample.Width/2,
                                             resulYellowRect.Y + 5,CharRectBounds.Width + rectEjderhaTasiSample.Width/2,rectEjderhaTasiSample.Height + 5);
-                                       // DebugDrawingHandle.DrawWantedObjectToScreen(rectItemWhite);
                                         int[] clippedWhiteItemName = imagesObject.ClipIntArray(targetImageArray, rectScanningArea, rectItemWhite);
 
                                         Rectangle resultItemWhite = imagesObject.FindBorderAreaForWantedColorV2(ColorGame.CHAT_WHITE_COLOR,
@@ -160,7 +156,6 @@ namespace Metin2AutoFishCSharp.Sources.CharacterHandle
 
                                         if (resultItemWhite != Rectangle.Empty)
                                         {
-                                          //  DebugDrawingHandle.DrawWantedObjectToScreen(resultItemWhite);
 
                                             int[] detectWhiteWords = imagesObject.ClipIntArray(clippedWhiteItemName, rectItemWhite,resultItemWhite);
                                             if (alphabetDetect.DetectGameTextWithProvidedImage(detectWhiteWords, resultItemWhite,
@@ -179,9 +174,6 @@ namespace Metin2AutoFishCSharp.Sources.CharacterHandle
                                                 //rectScanningArea = new Rectangle(resultItemWhite.X - 100, resultItemWhite.Y - 75,
                                                //     2 * rectEjderhaTasiSample.Width, 150);
 
-                                                // bitmapTargetIcon = screenShot.CaptureSpecifiedScreen(rectScanningArea);
-                                                // FileHandler.SaveImageAsPng(bitmapTargetIcon, "test" + countFile++ + ".png", PathWayStruct.PATH_SCREENSHOTS);
-                                               // targetImageArray = screenShot.ConvertBitmapToArray(bitmapTargetIcon);
                                                 listRectScannedItems.Clear();
                                                 listRectUnScannableName.Clear();
                                                 targetImageArray = screenShot.ImageArraySpecifiedArea(rectScanningArea);

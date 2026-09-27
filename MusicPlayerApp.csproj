@@ -96,14 +96,7 @@
     <Compile Include="Sources\ChatHandler\WhispersHandle.cs" />
     <Compile Include="Sources\ColorGame.cs" />
     <Compile Include="Sources\CoordinatesHandler\CheckGameCoordinate.cs" />
-    <Compile Include="Sources\Debugs\DebugDrawingHandle.cs" />
     <Compile Include="Sources\Debugs\DebugPfCnsl.cs" />
-    <Compile Include="FullScreen.cs">
-      <SubType>Form</SubType>
-    </Compile>
-    <Compile Include="FullScreen.Designer.cs">
-      <DependentUpon>FullScreen.cs</DependentUpon>
-    </Compile>
     <Compile Include="MainForm.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -139,9 +132,6 @@
     <EmbeddedResource Include="ChatHandlerForm.resx">
       <DependentUpon>ChatHandlerForm.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="FullScreen.resx">
-      <DependentUpon>FullScreen.cs</DependentUpon>
-    </EmbeddedResource>
     <EmbeddedResource Include="MainForm.resx">
       <DependentUpon>MainForm.cs</DependentUpon>
     </EmbeddedResource>
@@ -168,9 +158,6 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <Folder Include="TestImages\" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include=".NETFramework,Version=v4.7.2">
@@ -678,9 +665,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Images\yereAtma.png">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-    <Content Include="ScreenShot\test.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

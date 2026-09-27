@@ -104,7 +104,6 @@ namespace Metin2AutoFishCSharp.Sources.GameHandler
                     Rectangle rectDetectSameFlagName = new Rectangle(coor.RectCharNameArea().X, coor.RectCharNameArea().Y +
                         coor.RectCharNameArea().Height, coor.RectCharNameArea().Width, 105);
 
-                    // DebugDrawingHandle.DrawWantedObjectToScreen(rectDetectSameFlagName);
                     //Thread.Sleep(2000);
 
                     if (imageobject.FindBorderAreaForWantedColor(ColorGame.PLAYER_YELLOW_COLOR,
