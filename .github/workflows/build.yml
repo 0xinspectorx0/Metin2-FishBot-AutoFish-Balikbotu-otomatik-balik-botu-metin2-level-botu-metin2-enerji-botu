@@ -122,7 +122,15 @@ jobs:
               head -n 80 derleme-hatalari.txt
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
+
+            # Ayrıntı log/artifact indirmesi erişilemez olduğunda da hata satırları
+            # Checks API annotation'larında görüntülenebilsin.
+            while IFS= read -r error_line; do
+              echo "::error title=MSBuild::$error_line"
+            done < derleme-hatalari.txt
           fi
+
+          echo "::notice title=MSBuild::Derleme çıkış kodu: $EXIT; hata satırı sayısı: $COUNT"
 
           # Hata deseni eşleşmese bile logun sonu özete yazılır: böylece
           # Actions log'larına erişilemeyen ortamlardan da teşhis yapılabilir.
