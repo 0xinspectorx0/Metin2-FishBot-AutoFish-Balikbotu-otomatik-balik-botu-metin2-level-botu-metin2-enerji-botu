@@ -363,14 +363,40 @@ namespace MusicPlayerApp.Sources.GameHandler
                 matchedTemplate = "mavi/seçili";
             }
 
+            // Pencere ofseti/arka plan tonu farklıysa dar alandaki eşleşme kaçabilir;
+            // bu durumda aynı iki PNG tüm ekranda aranır.
             if (match == Rectangle.Empty)
             {
-                return false;
+                templateArea = new Rectangle(0, 0, NITE_TEMPLATE_WIDTH, NITE_TEMPLATE_HEIGHT);
+                match = imageObjects.FindImageInArea(
+                    imageObjects.arrayNiteServer, templateArea, Rectangle.Empty);
+                matchedTemplate = "normal (tam ekran araması)";
+            }
+
+            if (match == Rectangle.Empty)
+            {
+                templateArea = new Rectangle(0, 0,
+                    NITE_SELECTED_TEMPLATE_WIDTH, NITE_SELECTED_TEMPLATE_HEIGHT);
+                match = imageObjects.FindImageInArea(
+                    imageObjects.arrayNiteServerSelected, templateArea, Rectangle.Empty);
+                matchedTemplate = "mavi/seçili (tam ekran araması)";
+            }
+
+            if (match == Rectangle.Empty)
+            {
+                // PNG'ler renk/ölçek farkı yüzünden eşleşmese de giriş akışını durdurma;
+                // oyun penceresi tespit edilmiş olduğundan Nite'nin bilinen satırına tıkla.
+                Point fallbackPoint = coordinates.PointNiteServer();
+                inputGame.MouseMoveAndPressLeft(fallbackPoint.X, fallbackPoint.Y);
+                FileLogger.Warning("Nite PNG eşleşmedi; bilinen Nite koordinatına tıklandı (" +
+                    fallbackPoint.X + "," + fallbackPoint.Y + ")");
+                return true;
             }
 
             inputGame.MouseMoveAndPressLeft(match.X + match.Width / 2,
                 match.Y + match.Height / 2);
-            FileLogger.Info("Nite sunucusu PNG ile bulundu ve tıklandı (" + matchedTemplate + ")");
+            FileLogger.Info("Nite sunucusu PNG ile bulundu ve tıklandı (" + matchedTemplate +
+                ", x=" + match.X + ", y=" + match.Y + ")");
             return true;
         }
 
