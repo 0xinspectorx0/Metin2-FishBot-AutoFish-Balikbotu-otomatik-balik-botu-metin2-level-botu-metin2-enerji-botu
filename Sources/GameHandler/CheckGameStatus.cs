@@ -260,6 +260,14 @@ namespace MusicPlayerApp.Sources.GameHandler
         private const int ENTRY_CHANNEL_COUNT = 6;
         private const int ENTRY_RECHECK_SECONDS = 30;
         private const int ENTRY_CHANNEL_CONNECT_TIMEOUT_SECONDS = 20;
+        private const int CHANNEL_FULL_TEMPLATE_WIDTH = 26;
+        private const int CHANNEL_FULL_TEMPLATE_HEIGHT = 16;
+        private const int NITE_TEMPLATE_WIDTH = 105;
+        private const int NITE_TEMPLATE_HEIGHT = 20;
+        private const int NITE_SELECTED_TEMPLATE_WIDTH = 131;
+        private const int NITE_SELECTED_TEMPLATE_HEIGHT = 22;
+        private const int CHANNEL_UNKNOWN_TEMPLATE_WIDTH = 53;
+        private const int CHANNEL_UNKNOWN_TEMPLATE_HEIGHT = 11;
 
         private void EntryScreenHandle()
         {
@@ -268,10 +276,15 @@ namespace MusicPlayerApp.Sources.GameHandler
             TimerGame timeAlertUser = new TimerGame();
             HashSet<int> attemptedChannels = new HashSet<int>();
 
-            // Önce sol listedeki Nite sunucusunu bir kez seç; ardından kanal durumlarını oku.
-            Point niteServerPoint = coordinates.PointNiteServer();
-            inputGame.MouseMoveAndPressLeft(niteServerPoint.X, niteServerPoint.Y);
-            Thread.Sleep(1000);
+            // Nite satırının normal/seçili PNG şablonlarından hangisi görünüyorsa onu bulup seç.
+            if (!TryClickNiteServerTemplate())
+            {
+                FileLogger.Warning("Nite sunucusu PNG şablonları seçim ekranında bulunamadı; " +
+                    ENTRY_RECHECK_SECONDS + " saniye sonra yeniden taranacak");
+                WaitWhileEntryScreen(ENTRY_RECHECK_SECONDS);
+                return;
+            }
+            Thread.Sleep(500);
 
             while (IsEntryScreenVisible())
             {
@@ -279,34 +292,35 @@ namespace MusicPlayerApp.Sources.GameHandler
 
                 bool hasFullChannel = false;
                 List<int> availableChannels = ReadUnknownChannels(out hasFullChannel);
+
+                if (hasFullChannel)
+                {
+                    // Dolu PNG'si görünürse Nite PNG'sini yeniden seç, 500 ms bekle,
+                    // sonra yeniden taranan Bilinmeyen CH'lerden birini dene.
+                    int refreshedChannel = ReselectNiteAndTryUnknownChannel(attemptedChannels);
+                    if (refreshedChannel > 0)
+                    {
+                        attemptedChannels.Add(refreshedChannel);
+                        WaitForChannelConnection();
+                        continue;
+                    }
+
+                    FileLogger.Info("Dolu CH görüldü; Nite yenilendi ancak Bilinmeyen CH bulunamadı. " +
+                        ENTRY_RECHECK_SECONDS + " saniye sonra yeniden kontrol edilecek");
+                    WaitWhileEntryScreen(ENTRY_RECHECK_SECONDS);
+                    continue;
+                }
+
                 List<int> channelsToTry = availableChannels
                     .Where(channel => !attemptedChannels.Contains(channel))
                     .ToList();
 
                 if (channelsToTry.Count == 0)
                 {
-                    // Bilinmeyen CH'ler bu turda zaten denendiyse, bir sonraki taramaya
-                    // kadar sayaç sıfırlanır; dolu CH'lere gereksiz tıklanmaz.
+                    // Bilinmeyen CH'ler bu turda zaten denendiyse sayaç sıfırlanır.
                     if (availableChannels.Count > 0)
                     {
                         attemptedChannels.Clear();
-                    }
-                    else if (hasFullChannel)
-                    {
-                        // Kanal listesi Dolu/Kalabalık ise Nite'yi yeniden seçerek listeyi
-                        // yenile; yarım saniye sonra rastgele bir CH'yi ve Tamam'ı dene.
-                        int refreshedChannel = ReselectNiteAndTryRandomChannel();
-                        if (refreshedChannel > 0)
-                        {
-                            TimerGame refreshConnectionTimer = new TimerGame();
-                            while (refreshConnectionTimer.CheckDelayTimeInSecond(
-                                    ENTRY_CHANNEL_CONNECT_TIMEOUT_SECONDS) && IsEntryScreenVisible())
-                            {
-                                if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
-                                Thread.Sleep(500);
-                            }
-                            continue;
-                        }
                     }
 
                     FileLogger.Info("Nite sunucusunda Bilinmeyen durumunda uygun CH yok; " +
@@ -323,26 +337,49 @@ namespace MusicPlayerApp.Sources.GameHandler
                 }
 
                 int selectedChannel = channelsToTry[TimerGame.MakeRandomValue(0, channelsToTry.Count)];
-                Point channelPoint = coordinates.PointChannel(selectedChannel);
-                inputGame.MouseMoveAndPressLeft(channelPoint.X, channelPoint.Y);
-                Thread.Sleep(250);
-                inputGame.MouseMoveAndPressLeft(coordinates.PointOkButton().X,
-                    coordinates.PointOkButton().Y);
+                ClickChannelAndConfirm(selectedChannel, "Bilinmeyen PNG'si bulundu");
                 attemptedChannels.Add(selectedChannel);
-                FileLogger.Info("Nite sunucusunda Bilinmeyen durumundaki CH" + selectedChannel +
-                    " rastgele seçildi; giriş bekleniyor");
-
-                // Bağlantı ekranı kapanana kadar bekle; başarısızsa başka uygun CH'yi dene.
-                TimerGame connectionTimer = new TimerGame();
-                while (connectionTimer.CheckDelayTimeInSecond(ENTRY_CHANNEL_CONNECT_TIMEOUT_SECONDS) &&
-                    IsEntryScreenVisible())
-                {
-                    if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
-                    Thread.Sleep(500);
-                }
+                WaitForChannelConnection();
             }
 
             ThreadGlobals.isEntryScreenActive = false;
+        }
+
+        private bool TryClickNiteServerTemplate()
+        {
+            Rectangle searchArea = coordinates.RectNiteServerSearchArea();
+            Rectangle templateArea = new Rectangle(0, 0,
+                NITE_TEMPLATE_WIDTH, NITE_TEMPLATE_HEIGHT);
+            Rectangle match = imageObjects.FindImageInArea(
+                imageObjects.arrayNiteServer, templateArea, searchArea);
+            string matchedTemplate = "normal";
+
+            if (match == Rectangle.Empty)
+            {
+                templateArea = new Rectangle(0, 0,
+                    NITE_SELECTED_TEMPLATE_WIDTH, NITE_SELECTED_TEMPLATE_HEIGHT);
+                match = imageObjects.FindImageInArea(
+                    imageObjects.arrayNiteServerSelected, templateArea, searchArea);
+                matchedTemplate = "mavi/seçili";
+            }
+
+            if (match == Rectangle.Empty)
+            {
+                return false;
+            }
+
+            inputGame.MouseMoveAndPressLeft(match.X + match.Width / 2,
+                match.Y + match.Height / 2);
+            FileLogger.Info("Nite sunucusu PNG ile bulundu ve tıklandı (" + matchedTemplate + ")");
+            return true;
+        }
+
+        private Rectangle FindChannelStatusTemplate(int[] template, int width, int height,
+            int channelNumber)
+        {
+            Rectangle templateArea = new Rectangle(0, 0, width, height);
+            return imageObjects.FindImageInArea(template, templateArea,
+                coordinates.RectChannelStatusSearchArea(channelNumber));
         }
 
         private List<int> ReadUnknownChannels(out bool hasFullChannel)
@@ -351,8 +388,30 @@ namespace MusicPlayerApp.Sources.GameHandler
             hasFullChannel = false;
             for (int channel = 1; channel <= ENTRY_CHANNEL_COUNT; channel++)
             {
+                Rectangle unknownMatch = FindChannelStatusTemplate(
+                    imageObjects.arrayChannelUnknownStatus,
+                    CHANNEL_UNKNOWN_TEMPLATE_WIDTH, CHANNEL_UNKNOWN_TEMPLATE_HEIGHT, channel);
+                if (unknownMatch != Rectangle.Empty)
+                {
+                    channels.Add(channel);
+                    FileLogger.Debug("CH" + channel + " Bilinmeyen PNG'si bulundu");
+                    continue;
+                }
+
+                Rectangle fullMatch = FindChannelStatusTemplate(
+                    imageObjects.arrayChannelFullStatus,
+                    CHANNEL_FULL_TEMPLATE_WIDTH, CHANNEL_FULL_TEMPLATE_HEIGHT, channel);
+                if (fullMatch != Rectangle.Empty)
+                {
+                    hasFullChannel = true;
+                    FileLogger.Debug("CH" + channel + " Dolu PNG'si bulundu");
+                    continue;
+                }
+
+                // PNG şablonları eşleşmezse farklı renk/arka plan varyantlarına karşı
+                // mevcut harf OCR'ı yedek olarak kullanılır.
                 string status = ReadChannelStatus(channel);
-                FileLogger.Debug("Nite CH" + channel + " durumu: " +
+                FileLogger.Debug("Nite CH" + channel + " OCR durumu: " +
                     (string.IsNullOrEmpty(status) ? "okunamadı" : status));
 
                 if (status.IndexOf("bilinmeyen", StringComparison.OrdinalIgnoreCase) >= 0)
@@ -368,26 +427,53 @@ namespace MusicPlayerApp.Sources.GameHandler
             return channels;
         }
 
-        private int ReselectNiteAndTryRandomChannel()
+        private int ReselectNiteAndTryUnknownChannel(HashSet<int> attemptedChannels)
         {
-            if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return 0;
+            if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame ||
+                !TryClickNiteServerTemplate())
+            {
+                return 0;
+            }
 
-            Point niteServerPoint = coordinates.PointNiteServer();
-            inputGame.MouseMoveAndPressLeft(niteServerPoint.X, niteServerPoint.Y);
             Thread.Sleep(500);
-
             if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return 0;
 
-            int selectedChannel = TimerGame.MakeRandomValue(1, ENTRY_CHANNEL_COUNT + 1);
-            Point channelPoint = coordinates.PointChannel(selectedChannel);
+            bool hasFullChannel;
+            List<int> refreshedUnknownChannels = ReadUnknownChannels(out hasFullChannel)
+                .Where(channel => !attemptedChannels.Contains(channel))
+                .ToList();
+            if (refreshedUnknownChannels.Count == 0)
+            {
+                FileLogger.Info("Nite yeniden seçildi; yeni Bilinmeyen PNG'si görünmedi");
+                return 0;
+            }
+
+            int selectedChannel = refreshedUnknownChannels[
+                TimerGame.MakeRandomValue(0, refreshedUnknownChannels.Count)];
+            ClickChannelAndConfirm(selectedChannel, "Nite yenilendikten sonra Bilinmeyen PNG'si bulundu");
+            return selectedChannel;
+        }
+
+        private void ClickChannelAndConfirm(int channelNumber, string reason)
+        {
+            Point channelPoint = coordinates.PointChannel(channelNumber);
             inputGame.MouseMoveAndPressLeft(channelPoint.X, channelPoint.Y);
             Thread.Sleep(250);
-            inputGame.MouseMoveAndPressLeft(coordinates.PointOkButton().X,
-                coordinates.PointOkButton().Y);
 
-            FileLogger.Info("Nite sunucusu Dolu/Kalabalık CH nedeniyle yeniden seçildi; " +
-                "500 ms sonra CH" + selectedChannel + " ve Tamam tıklandı");
-            return selectedChannel;
+            Point okButton = coordinates.PointOkButton();
+            inputGame.MouseMoveAndPressLeft(okButton.X, okButton.Y);
+            FileLogger.Info("CH" + channelNumber + " seçildi ve Tamam tıklandı: " + reason);
+        }
+
+        private void WaitForChannelConnection()
+        {
+            TimerGame connectionTimer = new TimerGame();
+            while (connectionTimer.CheckDelayTimeInSecond(ENTRY_CHANNEL_CONNECT_TIMEOUT_SECONDS) &&
+                IsEntryScreenVisible())
+            {
+                if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return;
+                Thread.Sleep(500);
+            }
         }
 
         private string ReadChannelStatus(int channelNumber)

@@ -1,4 +1,4 @@
-﻿using MusicPlayerApp.Debugs;
+using MusicPlayerApp.Debugs;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -46,6 +46,10 @@ namespace MusicPlayerApp.Sources.ImageHandle
         public int[] arrayMetin2Icon { get; private set; }
         public int[] arrayInventoryTitle { get; private set; }
         public int[] arrayEntryScreen { get; private set; }
+        public int[] arrayChannelFullStatus { get; private set; }
+        public int[] arrayNiteServer { get; private set; }
+        public int[] arrayNiteServerSelected { get; private set; }
+        public int[] arrayChannelUnknownStatus { get; private set; }
         public int[] arrayCharScreen { get; private set; }
         public int[] arrayCharButton { get; private set; }
         public int[] arrayKilledScreen { get; private set; }
@@ -128,6 +132,10 @@ namespace MusicPlayerApp.Sources.ImageHandle
             arrayMetin2Icon = convertBitMapToIntArray(ImagePathNames.metin2IconFileName, PathWayStruct.PATH_IMAGE);
             arrayInventoryTitle = convertBitMapToIntArray(ImagePathNames.inventoryFileName, PathWayStruct.PATH_IMAGE);
             arrayEntryScreen = convertBitMapToIntArray(ImagePathNames.entryScreenFileName, PathWayStruct.PATH_IMAGE);
+            arrayChannelFullStatus = convertBitMapToIntArray(ImagePathNames.channelFullFileName, PathWayStruct.PATH_IMAGE);
+            arrayNiteServer = convertBitMapToIntArray(ImagePathNames.niteServerFileName, PathWayStruct.PATH_IMAGE);
+            arrayNiteServerSelected = convertBitMapToIntArray(ImagePathNames.niteServerSelectedFileName, PathWayStruct.PATH_IMAGE);
+            arrayChannelUnknownStatus = convertBitMapToIntArray(ImagePathNames.channelUnknownFileName, PathWayStruct.PATH_IMAGE);
             arrayCharScreen = convertBitMapToIntArray(ImagePathNames.charScreenFileName, PathWayStruct.PATH_IMAGE);
             arrayCharButton = convertBitMapToIntArray(ImagePathNames.charButtonFileName, PathWayStruct.PATH_IMAGE);
             arrayKilledScreen = convertBitMapToIntArray(ImagePathNames.dieScreenFileName, PathWayStruct.PATH_IMAGE);

@@ -1,4 +1,4 @@
-﻿using MusicPlayerApp.Sources.CoordinatesHandler;
+using MusicPlayerApp.Sources.CoordinatesHandler;
 using MusicPlayerApp.Sources.ImageHandle;
 using System;
 using System.Collections.Generic;
@@ -435,6 +435,20 @@ namespace MusicPlayerApp.Sources
         {
             Point currentMetin2Icon = CheckGameScreenPlace();
             return new Point(275 + currentMetin2Icon.X, 206 + currentMetin2Icon.Y);
+        }
+
+        /// <summary>Nite satırının normal/seçili PNG şablonlarının aranacağı alan.</summary>
+        public Rectangle RectNiteServerSearchArea()
+        {
+            Point point = PointNiteServer();
+            return new Rectangle(point.X - 100, point.Y - 24, 250, 48);
+        }
+
+        /// <summary>CH durum PNG şablonlarının aranacağı satır alanı.</summary>
+        public Rectangle RectChannelStatusSearchArea(int channelNumber)
+        {
+            Point point = PointChannel(channelNumber);
+            return new Rectangle(point.X - 15, point.Y - 11, 94, 26);
         }
 
         /// <summary>CH1-CH6 satırının tıklama noktası.</summary>

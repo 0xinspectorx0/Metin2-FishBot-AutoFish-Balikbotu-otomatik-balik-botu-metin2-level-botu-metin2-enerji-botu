@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,6 +16,10 @@ namespace MusicPlayerApp.Sources.ImageHandle
         public static readonly string charScreenFileName = "charScreen.png";
         public static readonly string dieScreenFileName = "dieScreen.png";
         public static readonly string entryScreenFileName = "entryScreen.png";
+        public static readonly string channelFullFileName = "channelFull.png";
+        public static readonly string niteServerFileName = "niteServer.png";
+        public static readonly string niteServerSelectedFileName = "niteServerSelected.png";
+        public static readonly string channelUnknownFileName = "channelUnknown.png";
         public static readonly string firstSkillEmptyFileName = "firstSkillSlotEmpty.png";
         public static readonly string fullEnvanterFileName = "fullEnvanter.png";
         public static readonly string kampIconFileName = "kampIcon.png";
