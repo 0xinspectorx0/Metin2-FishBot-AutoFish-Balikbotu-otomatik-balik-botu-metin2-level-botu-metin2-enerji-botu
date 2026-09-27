@@ -176,6 +176,9 @@ namespace MusicPlayerApp.Sources
                 ThreadGlobals.IsThreadOneActive = false;
                 ThreadGlobals.IsThreadTwoActive = false;
                 ThreadGlobals.IsThreadThreeActive = false;
+                ThreadGlobals.isFishingStopped = true;
+                ThreadGlobals.isLevelFarmStopped = true;
+                ThreadGlobals.isEnergyCristalStopped = true;
                 TimerGame.ResetCountdownDisplay();
                 AutoHunter.IS_AUTO_HUNTER_STARTED = false;
 
@@ -183,8 +186,9 @@ namespace MusicPlayerApp.Sources
                 HandleFormElement(MainForm.labelCopyStartStatus, message);
                 HandleFormElement(MainForm.labelCopyLevelFarmStatus, message);
                 HandleFormElement(MainForm.labelCopyEnergyCristalStatus, message);
-                HandleFormElement(MainForm.buttonFishingStartCopy, string.Empty, true);
-                HandleFormElement(MainForm.buttonLevelFarmStartCopy, string.Empty, true);
+                HandleFormElement(MainForm.buttonFishingStartCopy, "BAŞLAT", true);
+                HandleFormElement(MainForm.buttonLevelFarmStartCopy, "BAŞLAT", true);
+                HandleFormElement(MainForm.buttonEnergyStartCopy, "BAŞLAT", true);
 
                 try
                 {
@@ -224,10 +228,33 @@ namespace MusicPlayerApp.Sources
                     {
                         if (!timeGeneral.CheckDelayTimeInMinute(TimerGame.GAME_STOP_TIME))
                         {
-                            charThings.SettingButtonClick(SettingButtonPrefers.EXIT_BUTTON);
-                            FileLogger.Info("Oyun, zamanlayıcı (toplam süre) tarafından durduruldu");
-                            HandleFormElement(MainForm.labelCopyStartStatus, "Oyun zamanlayıcı tarafından durduruldu");
+                            FileLogger.Info("Toplam süre doldu; tüm bot modları durduruluyor");
+                            HandleFormElement(MainForm.labelCopyStartStatus, "Toplam süre doldu; bot durduruldu");
+                            HandleFormElement(MainForm.labelCopyLevelFarmStatus, "Toplam süre doldu; bot durduruldu");
+                            HandleFormElement(MainForm.labelCopyEnergyCristalStatus, "Toplam süre doldu; bot durduruldu");
+
+                            // Mevcut davranış korunur: toplam süre dolunca oyun içinden çıkılır.
+                            // Bu işlem hata verse bile botun durdurulması garanti edilmelidir.
+                            try
+                            {
+                                charThings.SettingButtonClick(SettingButtonPrefers.EXIT_BUTTON);
+                            }
+                            catch (Exception ex)
+                            {
+                                FileLogger.Warning("Süre sonunda oyun içi çıkış başarısız: " + ex.Message);
+                            }
+
+                            ThreadGlobals.isFishingStopped = true;
+                            ThreadGlobals.isLevelFarmStopped = true;
+                            ThreadGlobals.isEnergyCristalStopped = true;
+                            bool closeApplication = MainForm.CloseApplicationAfterTotalTime;
                             Stop();
+
+                            if (closeApplication)
+                            {
+                                FileLogger.Info("Süre sonu seçeneği etkin; uygulama hard olarak kapatılıyor");
+                                Environment.Exit(0);
+                            }
                             return;
                         }
                     }
@@ -405,12 +432,17 @@ namespace MusicPlayerApp.Sources
             FileLogger.Info("ThreadsHandler.Stop çağrıldı");
 
             TimerGame.ResetCountdownDisplay();
+            ThreadGlobals.isFishingStopped = true;
+            ThreadGlobals.isLevelFarmStopped = true;
+            ThreadGlobals.isEnergyCristalStopped = true;
             ThreadGlobals.SetDefaultGloabalValues();
+
+            HandleFormElement(MainForm.buttonFishingStartCopy, "BAŞLAT", false);
+            HandleFormElement(MainForm.buttonLevelFarmStartCopy, "BAŞLAT", false);
+            HandleFormElement(MainForm.buttonEnergyStartCopy, "BAŞLAT", false);
 
             Thread waiter = new Thread(() =>
             {
-                HandleFormElement(MainForm.buttonFishingStartCopy, string.Empty, false);
-
                 int waited = 0;
                 while (ThreadGlobals.IsAnyThreadActive() && waited < STOP_WAIT_TIMEOUT_MILLISECONDS)
                 {
@@ -430,8 +462,9 @@ namespace MusicPlayerApp.Sources
                     ThreadGlobals.IsThreadThreeActive = false;
                 }
 
-                HandleFormElement(MainForm.buttonFishingStartCopy, string.Empty, true);
-                HandleFormElement(MainForm.buttonLevelFarmStartCopy, string.Empty, true);
+                HandleFormElement(MainForm.buttonFishingStartCopy, "BAŞLAT", true);
+                HandleFormElement(MainForm.buttonLevelFarmStartCopy, "BAŞLAT", true);
+                HandleFormElement(MainForm.buttonEnergyStartCopy, "BAŞLAT", true);
             });
             waiter.Name = "Stop Waiter";
             waiter.IsBackground = true;
@@ -442,7 +475,7 @@ namespace MusicPlayerApp.Sources
         /// Arayüz bileşenini hangi thread'den olursa olsun güvenle günceller.
         /// </summary>
         /// <param name="visComponent">Label, Button, PictureBox veya TextBox</param>
-        /// <param name="text">Label/TextBox için yeni metin</param>
+        /// <param name="text">Label/TextBox metni veya Button için isteğe bağlı başlık</param>
         /// <param name="state">Button için Enabled değeri</param>
         /// <param name="bitmapClipped">PictureBox için yeni görsel</param>
         public void HandleFormElement(Control visComponent, string text = "", bool state = false, Bitmap bitmapClipped = null)
@@ -496,6 +529,10 @@ namespace MusicPlayerApp.Sources
             }
             else if (visComponent is Button)
             {
+                if (!string.IsNullOrEmpty(text))
+                {
+                    visComponent.Text = text;
+                }
                 visComponent.Enabled = state;
             }
             else if (visComponent is PictureBox box)

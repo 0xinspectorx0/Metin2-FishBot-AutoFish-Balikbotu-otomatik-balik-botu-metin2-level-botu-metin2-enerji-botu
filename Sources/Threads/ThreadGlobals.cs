@@ -327,14 +327,6 @@ namespace MusicPlayerApp.Sources
             isWhisperDetected = false;
             isCharNameCanDetectable = false;
 
-            isYabbieSelected = true;
-            isAltinSudakSelected = true;
-            isPalamutSelected = true;
-            isKurbagaSelected = false;
-            isKadifeSelected = false;
-            isDenizkizSelected = false;
-            isHepsiSelected = false;
-
             IsThreadOneActive = false;
             IsThreadTwoActive = false;
             IsThreadThreeActive = false;

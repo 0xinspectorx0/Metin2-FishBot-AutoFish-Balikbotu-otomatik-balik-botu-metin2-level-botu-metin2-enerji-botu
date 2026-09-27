@@ -29,6 +29,8 @@ namespace MusicPlayerApp
         public static Label labelCopyEnergyCristalStatus;
         public static Button buttonFishingStartCopy;
         public static Button buttonLevelFarmStartCopy;
+        public static Button buttonEnergyStartCopy;
+        public static volatile bool CloseApplicationAfterTotalTime;
         
         private ImageObjects imageObjects;
         private ThreadsHandler threadsHandler;
@@ -103,6 +105,7 @@ namespace MusicPlayerApp
             labelCopyEnergyCristalStatus = labelEnergyCristal;
             buttonFishingStartCopy = buttonFishingStart;
             buttonLevelFarmStartCopy = buttonLevelStart;
+            buttonEnergyStartCopy = buttonEnergyStart;
             // Referans PNG'ler yalnızca bir kez yüklenir (singleton). Eskiden burada
             // `new ImageObjects()` çağrılıyordu; bu, ~70 PNG'yi ikinci kez okuyup her
             // biri için dispose edilmeyen Bitmap yaratıyordu (GDI nesne sızıntısı).
@@ -291,6 +294,112 @@ namespace MusicPlayerApp
 
 
 
+
+        private void checkBoxCloseAfterTime_CheckedChanged(object sender, EventArgs e)
+        {
+            CloseApplicationAfterTotalTime = checkBoxCloseAfterTime.Checked;
+        }
+
+        private void buttonResetSettings_Click(object sender, EventArgs e)
+        {
+            // Sıfırlama bot çalışırken de istenebilir; önce tüm modları durdur.
+            bool botWasRunning = !ThreadGlobals.isFishingStopped ||
+                !ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isEnergyCristalStopped ||
+                ThreadGlobals.IsAnyThreadActive();
+            ThreadGlobals.isFishingStopped = true;
+            ThreadGlobals.isLevelFarmStopped = true;
+            ThreadGlobals.isEnergyCristalStopped = true;
+            if (threadsHandler != null)
+            {
+                if (botWasRunning)
+                {
+                    threadsHandler.Stop();
+                }
+                else
+                {
+                    ThreadGlobals.SetDefaultGloabalValues();
+                }
+            }
+
+            // Balık türleri: uygulamanın başlangıç varsayılanları.
+            checkBoxYabbie.Checked = true;
+            checkBoxAltinSudak.Checked = true;
+            checkBoxPalamut.Checked = true;
+            checkBoxKurbaga.Checked = false;
+            checkBoxKadife.Checked = false;
+            checkBoxDeniz.Checked = false;
+            checkBoxHepsi.Checked = false;
+            foreach (CheckBox fishCheckBox in new[] {
+                checkBoxYabbie, checkBoxAltinSudak, checkBoxPalamut,
+                checkBoxKurbaga, checkBoxKadife, checkBoxDeniz })
+            {
+                fishCheckBox.Enabled = true;
+            }
+            ThreadGlobals.isYabbieSelected = true;
+            ThreadGlobals.isAltinSudakSelected = true;
+            ThreadGlobals.isPalamutSelected = true;
+            ThreadGlobals.isKurbagaSelected = false;
+            ThreadGlobals.isKadifeSelected = false;
+            ThreadGlobals.isDenizkizSelected = false;
+            ThreadGlobals.isHepsiSelected = false;
+
+            // Zamanlayıcı varsayılanı kapalıdır; değer kutuları tasarımda boştur.
+            checkBoxEnableTime.Checked = false;
+            checkBoxCloseAfterTime.Checked = false;
+            textBoxMinWorkTime.Text = string.Empty;
+            textBoxMaxWorkTime.Text = string.Empty;
+            textBoxMinMaxBreak.Text = string.Empty;
+            textBoxStopGameTime.Text = string.Empty;
+            TimerGame.MIN_WORK_TIME = 0;
+            TimerGame.MAX_WORK_TIME = 0;
+            TimerGame.MIN_BREAK_TIME = 0;
+            TimerGame.MAX_BREAK_TIME = 0;
+            TimerGame.GAME_STOP_TIME = 0;
+            ThreadGlobals.isTimerBreakEnabled = false;
+            EnableOrDisableTimerCheckBox(false);
+            TimerGame.ResetCountdownDisplay();
+
+            // Diğer balıkçılık seçenekleri: kapalı.
+            checkBoxFishingMiniBreak.Checked = false;
+            checkBoxChatActive.Checked = false;
+            checkBoxWhisperActive.Checked = false;
+            checkBoxAdaptableFish.Checked = false;
+            checkBoxPCSlow.Checked = false;
+
+            // Level/Farm sekmesinin varsayılan değerleri.
+            checkBoxETPPickUp.Checked = false;
+            textBoxHp.Text = "4";
+            textBoxSp.Text = "2";
+            textBoxStr.Text = "3";
+            textBoxDex.Text = "1";
+            ThreadGlobals.SetStatusPriority(4, 2, 3, 1);
+            trackBarHp.Value = 50;
+            trackBarSp.Value = 50;
+            textBoxHpRate.Text = "50";
+            textBoxSpRate.Text = "50";
+            ThreadGlobals.SetHpSpRate(50, 50);
+
+            TextBox[] skillBoxes = {
+                textBoxSkillOne, textBoxSkillTwo, textBoxSkillThree, textBoxSkillFour,
+                textBoxSkillF1, textBoxSkillF2, textBoxSkillF3, textBoxSkillF4
+            };
+            for (int i = 0; i < skillBoxes.Length; i++)
+            {
+                skillBoxes[i].Text = "0";
+                ThreadGlobals.SetSkillTime(i, 0);
+            }
+
+            // Telegram token'ı saklı tutulur; yalnızca bot varsayılan olarak kapatılır.
+            checkBoxTelegram.Checked = false;
+            buttonFishingStart.Text = "BAŞLAT";
+            buttonLevelStart.Text = "BAŞLAT";
+            buttonEnergyStart.Text = "BAŞLAT";
+            labelStartStatus.Text = "Hazır";
+            labelLevelFarmStatus.Text = "Bekliyor";
+            labelEnergyCristal.Text = "Bekliyor";
+            CloseApplicationAfterTotalTime = false;
+            UpdateTimerCountdownDisplay();
+        }
 
         private void LoadCheckBoxes()
         {
