@@ -1,4 +1,4 @@
-﻿using Metin2AutoFishCSharp.Sources;
+using Metin2AutoFishCSharp.Sources;
 using Metin2AutoFishCSharp.Sources.ChatHandler;
 using Metin2AutoFishCSharp.Sources.GameHandler;
 using Metin2AutoFishCSharp.Sources.LevelAndFarms;
@@ -15,6 +15,7 @@ using System.Drawing.Text;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace MusicPlayerApp.Sources.GameHandler
