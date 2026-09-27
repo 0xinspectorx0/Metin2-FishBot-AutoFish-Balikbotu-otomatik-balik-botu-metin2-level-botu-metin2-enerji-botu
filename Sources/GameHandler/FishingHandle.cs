@@ -104,8 +104,8 @@ namespace MusicPlayerApp.Sources.GameHandler
                     
                     //Break the Game
                     //uncomment
-                    if(timeGameRest.CheckCountDownMinute(TimerGame.MIN_WORK_TIME,
-                        TimerGame.MAX_WORK_TIME))
+                    if (timeGameRest.CheckCountDownMinute(TimerGame.MIN_WORK_TIME,
+                        TimerGame.MAX_WORK_TIME, true))
                     //comment
                     //if(!timeGameRest.CheckDelayTimeInSecond(15))
                     {

@@ -37,6 +37,12 @@ namespace MusicPlayerApp
         private ScreenShotWinAPI screenShot;
         private GameObjectCoordinates coor;
 
+        private StatusStrip timerCountdownStatusStrip;
+        private ToolStripStatusLabel labelTotalCountdown;
+        private ToolStripStatusLabel labelActiveCountdown;
+        private ToolStripStatusLabel labelBreakCountdown;
+        private System.Windows.Forms.Timer timerCountdownRefresh;
+
         private TelegramBot telegramBot;
         /// <summary>checkBoxTelegram.Checked programatik olarak değiştirilirken olayın
         /// yeniden tetiklenmesini engeller.</summary>
@@ -127,6 +133,7 @@ namespace MusicPlayerApp
             LoadComboBox();
             LoadCheckBoxes();
             EnableOrDisableTimerCheckBox(false);
+            InitializeTimerCountdownDisplay();
             // Surum denetimi arka planda calisir; form acilisini bloklamaz.
             // (VersionChecker artik MusicPlayerApp.Sources ad alaninda.)
             MusicPlayerApp.Sources.VersionChecker.CheckForUpdate();
@@ -595,12 +602,94 @@ namespace MusicPlayerApp
             }
         }
 
+        private void InitializeTimerCountdownDisplay()
+        {
+            // Alt durum çubuğu, mevcut Balık Tutma kontrollerinin üstüne binmeden
+            // sayaçları tüm sekmelerde görünür tutar.
+            this.ClientSize = new Size(503, 496);
+            tabControlTelegram.Dock = DockStyle.Fill;
+
+            timerCountdownStatusStrip = new StatusStrip();
+            timerCountdownStatusStrip.Dock = DockStyle.Bottom;
+            timerCountdownStatusStrip.SizingGrip = false;
+            timerCountdownStatusStrip.Visible = checkBoxEnableTime.Checked;
+
+            labelTotalCountdown = new ToolStripStatusLabel("Toplam: bekliyor");
+            labelActiveCountdown = new ToolStripStatusLabel("Aktiflik: bekliyor");
+            labelBreakCountdown = new ToolStripStatusLabel("Mola: başlamadı");
+            timerCountdownStatusStrip.Items.Add(labelTotalCountdown);
+            timerCountdownStatusStrip.Items.Add(new ToolStripStatusLabel("  |  "));
+            timerCountdownStatusStrip.Items.Add(labelActiveCountdown);
+            timerCountdownStatusStrip.Items.Add(new ToolStripStatusLabel("  |  "));
+            timerCountdownStatusStrip.Items.Add(labelBreakCountdown);
+            this.Controls.Add(timerCountdownStatusStrip);
+            timerCountdownStatusStrip.BringToFront();
+
+            timerCountdownRefresh = new System.Windows.Forms.Timer(components);
+            timerCountdownRefresh.Interval = 500;
+            timerCountdownRefresh.Tick += TimerCountdownRefresh_Tick;
+            timerCountdownRefresh.Start();
+            UpdateTimerCountdownDisplay();
+        }
+
+        private void TimerCountdownRefresh_Tick(object sender, EventArgs e)
+        {
+            UpdateTimerCountdownDisplay();
+        }
+
+        private void UpdateTimerCountdownDisplay()
+        {
+            if (timerCountdownStatusStrip == null)
+            {
+                return;
+            }
+
+            timerCountdownStatusStrip.Visible = checkBoxEnableTime.Checked;
+            if (!checkBoxEnableTime.Checked)
+            {
+                return;
+            }
+
+            TimeSpan? total = TimerGame.GetTotalCountdownRemaining();
+            TimeSpan? active = TimerGame.GetActiveCountdownRemaining();
+            TimeSpan? pause = TimerGame.GetBreakCountdownRemaining();
+
+            labelTotalCountdown.Text = total.HasValue
+                ? "Toplam: " + FormatCountdown(total.Value)
+                : "Toplam: bekliyor";
+
+            if (pause.HasValue)
+            {
+                labelActiveCountdown.Text = "Aktiflik: molada";
+                labelBreakCountdown.Text = "Mola bitimine: " + FormatCountdown(pause.Value);
+            }
+            else
+            {
+                labelActiveCountdown.Text = active.HasValue
+                    ? "Aktiflik: " + FormatCountdown(active.Value)
+                    : "Aktiflik: bekliyor";
+                labelBreakCountdown.Text = "Mola: başlamadı";
+            }
+        }
+
+        private string FormatCountdown(TimeSpan remaining)
+        {
+            long totalSeconds = (long)Math.Ceiling(Math.Max(0, remaining.TotalSeconds));
+            return (totalSeconds / 60).ToString("00") + ":" +
+                (totalSeconds % 60).ToString("00");
+        }
+
         private void checkBoxEnableTime_CheckedChanged(object sender, EventArgs e)
         {
             if(checkBoxEnableTime.Checked)
             {
                 ThreadGlobals.isTimerBreakEnabled = true;
                 EnableOrDisableTimerCheckBox(true);
+                if (!ThreadGlobals.isFishingStopped || !ThreadGlobals.isLevelFarmStopped ||
+                    !ThreadGlobals.isEnergyCristalStopped)
+                {
+                    threadsHandler.StartTotalCountdownTimer();
+                }
                 if(ThreadGlobals.isFishingStopped)
                 {
                     labelStartStatus.Text = "Süreleri dakika olarak girin";
@@ -618,6 +707,7 @@ namespace MusicPlayerApp
                 
             }
             
+            UpdateTimerCountdownDisplay();
         }
 
         private void textBoxMinWorkLeave(object sender, EventArgs e)

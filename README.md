@@ -212,11 +212,18 @@ sürüm yayımlarken:
 
 ## SÜRÜM GEÇMİŞİ
 
+### 1.0.4 — Zamanlayıcı sayaçları
+
+- Zamanlayıcı açıkken toplam süre, çalışma dönemi ve mola için kalan süre arayüzde canlı sayaç olarak gösterilir.
+- Mola sayacı yalnızca mola başladıktan sonra, molanın bitimine kalan süreyi sayar.
+- Sayaçlar saniyede iki kez güncellenir ve zamanlayıcı kapatıldığında gizlenir.
+- Zamanlayıcı sayaçlarının güncellenmesi thread-safe hale getirildi.
+
 ### 1.0.3 — Bakım turu (27.09.2026)
 
 **Derlenebilirlik**
 - `Sources/VersionChecker.cs` `.csproj`'a eklendi (dosya diskte vardı ama derlenmiyordu → proje temiz kopyada hiç derlenmiyordu).
-- 161 `Content` öğesine (`ScreenShot`, `Fishes`, `ChatResources` …) `CopyToOutputDirectory=PreserveNewest` eklendi.
+- 166 `Content` öğesine (`ScreenShot`, `Fishes`, `ChatResources` …) `CopyToOutputDirectory=PreserveNewest` eklendi.
 - `.gitignore` eklendi; `bin/` ve `obj/` takipten çıkarıldı.
 - Kökteki yetim `GameObjectCoordinates.cs` / `CheckGameCoordinate.cs` kopyaları silindi.
 - ClickOnce/imza artıkları (`ManifestCertificateThumbprint`, `ManifestKeyFile`, `PublishUrl`, `TargetZone`) ve depodaki `Metin2AutoFishCSharp_TemporaryKey.pfx` kaldırıldı.
@@ -257,7 +264,7 @@ sürüm yayımlarken:
 - Boş olay işleyicileri (`tabPage1_Click`, `label21_Click`, `groupBox1_Enter`, `label27_Click`) ve ölü kod kaldırıldı.
 - `Zamanlayıcı Aktif Et` kutusu artık klavye ile işaretlendiğinde de çalışıyor (boş `CheckedChanged` yerine gerçek işleyiciye bağlı).
 - `app.manifest` eklendi: `requireAdministrator`, `PerMonitorV2` DPI bildirimi, desteklenen işletim sistemleri ve Common Controls v6.
-- Sürüm bilgisi tek kaynağa indirildi (`AssemblyFileVersion` = `version.txt` = `1.0.3`).
+- Sürüm bilgisi tek kaynağa indirildi (`AssemblyFileVersion` = `version.txt` = `1.0.4`).
 - Dosya günlükçüsü eklendi: `Logs/bot-yyyyMMdd.log`.
 
 ### 2.3 (11.09.2024)

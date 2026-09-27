@@ -121,6 +121,12 @@ namespace MusicPlayerApp.Sources
                 ", levelFarm=" + ThreadGlobals.isLevelFarmStopped +
                 ", enerji=" + ThreadGlobals.isEnergyCristalStopped + ")");
 
+            TimerGame.ResetCountdownDisplay();
+            if (ThreadGlobals.isTimerBreakEnabled)
+            {
+                StartTotalCountdownTimer();
+            }
+
             //@@@@@@@@    THREAD 1 — ana bot döngüsü    @@@@@@@@@@@@
             Thread t1 = new Thread(() => RunThreadSafely(T1Name, ThreadOneBody));
             t1.Name = T1Name;
@@ -138,6 +144,13 @@ namespace MusicPlayerApp.Sources
             t3.Name = T3Name;
             t3.IsBackground = true;
             t3.Start();
+        }
+
+        /// <summary>Toplam süre sayacını başlatır veya kullanıcı yeniden etkinleştirirse sıfırlar.</summary>
+        public void StartTotalCountdownTimer()
+        {
+            timeGeneral.SetStartedMinuteTime();
+            TimerGame.StartTotalCountdownDisplay(TimerGame.GAME_STOP_TIME);
         }
 
         /// <summary>
@@ -165,6 +178,7 @@ namespace MusicPlayerApp.Sources
                 ThreadGlobals.IsThreadOneActive = false;
                 ThreadGlobals.IsThreadTwoActive = false;
                 ThreadGlobals.IsThreadThreeActive = false;
+                TimerGame.ResetCountdownDisplay();
                 AutoHunter.IS_AUTO_HUNTER_STARTED = false;
 
                 string message = "Bot beklenmeyen bir hata nedeniyle durdu. Ayrıntı: Logs klasöründeki günlük dosyası.";
@@ -392,6 +406,7 @@ namespace MusicPlayerApp.Sources
         {
             FileLogger.Info("ThreadsHandler.Stop çağrıldı");
 
+            TimerGame.ResetCountdownDisplay();
             ThreadGlobals.SetDefaultGloabalValues();
 
             Thread waiter = new Thread(() =>

@@ -30,6 +30,98 @@ namespace MusicPlayerApp.Sources
     /// </remarks>
     internal class TimerGame
     {
+        // Arayüz sayaçlarının ortak, thread-safe durumu.
+        private static readonly object countdownDisplayLock = new object();
+        private static DateTime? totalCountdownEndUtc;
+        private static DateTime? activeCountdownEndUtc;
+        private static DateTime? breakCountdownEndUtc;
+
+        public static void StartTotalCountdownDisplay(int minutes)
+        {
+            lock (countdownDisplayLock)
+            {
+                totalCountdownEndUtc = DateTime.UtcNow.AddMinutes(Math.Max(0, minutes));
+            }
+        }
+
+        public static void ResetCountdownDisplay()
+        {
+            lock (countdownDisplayLock)
+            {
+                totalCountdownEndUtc = null;
+                activeCountdownEndUtc = null;
+                breakCountdownEndUtc = null;
+            }
+        }
+
+        private static void SetActiveCountdownDisplay(DateTime endUtc)
+        {
+            lock (countdownDisplayLock)
+            {
+                activeCountdownEndUtc = endUtc;
+                breakCountdownEndUtc = null;
+            }
+        }
+
+        private static void ClearActiveCountdownDisplay()
+        {
+            lock (countdownDisplayLock)
+            {
+                activeCountdownEndUtc = null;
+            }
+        }
+
+        private static void StartBreakCountdownDisplay(int minutes)
+        {
+            lock (countdownDisplayLock)
+            {
+                activeCountdownEndUtc = null;
+                breakCountdownEndUtc = DateTime.UtcNow.AddMinutes(Math.Max(0, minutes));
+            }
+        }
+
+        private static void EndBreakCountdownDisplay()
+        {
+            lock (countdownDisplayLock)
+            {
+                breakCountdownEndUtc = null;
+            }
+        }
+
+        public static TimeSpan? GetTotalCountdownRemaining()
+        {
+            lock (countdownDisplayLock)
+            {
+                return GetRemainingTime(totalCountdownEndUtc);
+            }
+        }
+
+        public static TimeSpan? GetActiveCountdownRemaining()
+        {
+            lock (countdownDisplayLock)
+            {
+                return GetRemainingTime(activeCountdownEndUtc);
+            }
+        }
+
+        public static TimeSpan? GetBreakCountdownRemaining()
+        {
+            lock (countdownDisplayLock)
+            {
+                return GetRemainingTime(breakCountdownEndUtc);
+            }
+        }
+
+        private static TimeSpan? GetRemainingTime(DateTime? endUtc)
+        {
+            if (!endUtc.HasValue)
+            {
+                return null;
+            }
+
+            TimeSpan remaining = endUtc.Value - DateTime.UtcNow;
+            return remaining <= TimeSpan.Zero ? TimeSpan.Zero : remaining;
+        }
         private long StartedMilliSecTime = 0L;
         private long StartedSecondTime = 0L;
         private long StartedMinuteTime = 0L;
@@ -278,7 +370,8 @@ namespace MusicPlayerApp.Sources
         /// Rastgele bir dakika aralığı için geri sayar; süre dolduğunda <c>true</c> döner
         /// ve sayacı sıfırlar (yani her <c>true</c> dönüşü yeni bir periyot başlatır).
         /// </summary>
-        public bool CheckCountDownMinute(int minValue, int maxValue = 0)
+        public bool CheckCountDownMinute(int minValue, int maxValue = 0,
+            bool showAsActiveWorkCountdown = false)
         {
             if (!isBreakTimeDefined)
             {
@@ -287,9 +380,20 @@ namespace MusicPlayerApp.Sources
                 SetStartedMinuteTime();
             }
 
+            // Yalnızca balıkçılığın çalışma/molaya geçiş sayacı gösterilir.
+            if (showAsActiveWorkCountdown && StartedMinuteTime > 0L)
+            {
+                DateTime startUtc = DateTimeOffset.FromUnixTimeSeconds(StartedMinuteTime).UtcDateTime;
+                SetActiveCountdownDisplay(startUtc.AddMinutes(breakTime));
+            }
+
             if (!CheckDelayTimeInMinute(breakTime))
             {
                 isBreakTimeDefined = false;
+                if (showAsActiveWorkCountdown)
+                {
+                    ClearActiveCountdownDisplay();
+                }
                 return true;
             }
 
@@ -352,6 +456,7 @@ namespace MusicPlayerApp.Sources
             FileLogger.Info("Mola veriliyor (dakika cinsinden hedef: " + waitResult + ")");
 
             SetStartedMinuteTime();
+            StartBreakCountdownDisplay(waitResult);
             ThreadGlobals.isCharStopped = true;
 
             try
@@ -370,6 +475,7 @@ namespace MusicPlayerApp.Sources
             finally
             {
                 ThreadGlobals.isCharStopped = false;
+                EndBreakCountdownDisplay();
             }
         }
 
