@@ -637,9 +637,13 @@ namespace MusicPlayerApp.Sources.GameHandler
                 {
                     DebugPfCnsl.println("Envanter dolu görseli algılandı; balık pişirme hazırlığı başlatılıyor");
                     isInventoryFullRecoveryHandled = true;
-                    // This runs synchronously on the fishing thread: no more fishing input
-                    // occurs until fish preparation/grilling returns.
-                    prepareFish.StartPrepareFishing();
+                    // Synchronous cooking pauses this fishing thread; after it returns,
+                    // the existing fishing loop continues without preparing worms.
+                    string grillResult;
+                    if (!prepareFish.GrillFishForInventorySpace(out grillResult))
+                    {
+                        DebugPfCnsl.println("Envanter uyarısı sonrası pişirme tamamlanamadı: " + grillResult);
+                    }
                 }
                 else
                 {
