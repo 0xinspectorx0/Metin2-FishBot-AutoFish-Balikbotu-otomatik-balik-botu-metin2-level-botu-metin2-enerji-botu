@@ -101,6 +101,20 @@ namespace MusicPlayerApp.Sources.GameHandler
         /// </summary>
         public bool GrillAllFishOnly(out string result)
         {
+            return GrillAllFishOnlyCore(out result, false);
+        }
+
+        /// <summary>
+        /// Envanter dolu kurtarmasında mevcut konum ve kamera açısından ayrılmadan pişirir.
+        /// Balıkçı/ateş bulunamazsa karakteri veya kamerayı hareket ettirmeden başarısız olur.
+        /// </summary>
+        public bool GrillAllFishAtCurrentPositionOnly(out string result)
+        {
+            return GrillAllFishOnlyCore(out result, true);
+        }
+
+        private bool GrillAllFishOnlyCore(out string result, bool keepCharacterInPlace)
+        {
             result = "Balık pişirme işlemi tamamlanamadı.";
 
             if (ThreadGlobals.isFishingStopped || ThreadGlobals.isBotPaused ||
@@ -180,10 +194,23 @@ namespace MusicPlayerApp.Sources.GameHandler
                         return restartCount > 0;
                     }
 
-                    // Balıkçı dükkânı zaten açıksa tekrar aramaya çıkma.
+                    // In-place recovery yalnızca mevcut görüntüdeki balıkçıya tıklamayı dener;
+                    // NPC görünmüyorsa karakter/kamera hareketi yapmadan işlemi sonlandırır.
                     if (!CheckFisherShopPage())
                     {
-                        FindFisher();
+                        if (keepCharacterInPlace)
+                        {
+                            string fisherShopError;
+                            if (!OpenFisherShopAtCurrentPosition(out fisherShopError))
+                            {
+                                result = fisherShopError;
+                                return false;
+                            }
+                        }
+                        else
+                        {
+                            FindFisher();
+                        }
                     }
 
                     if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
@@ -199,14 +226,16 @@ namespace MusicPlayerApp.Sources.GameHandler
                         return false;
                     }
 
-                    BuyKampAtasiFromFisher();
+                    BuyKampAtasiFromFisher(keepCharacterInPlace);
                     if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
                     {
                         result = "Balık pişirme işlemi durduruldu.";
                         return false;
                     }
 
-                    Rectangle campfire = FireKampAtesi();
+                    Rectangle campfire = keepCharacterInPlace
+                        ? FireKampAtesiAtCurrentPosition()
+                        : FireKampAtesi();
                     if (campfire == Rectangle.Empty)
                     {
                         if (standaloneAtmkRestartRequested)
@@ -221,13 +250,16 @@ namespace MusicPlayerApp.Sources.GameHandler
                             continue;
                         }
 
-                        result = "Kamp ateşi hazırlanamadı; işlem durduruldu.";
+                        result = keepCharacterInPlace
+                            ? "Mevcut konumdan kamp ateşi hazırlanamadı; karakter ve kamera hareket ettirilmedi."
+                            : "Kamp ateşi hazırlanamadı; işlem durduruldu.";
                         return false;
                     }
 
                     bool completed = RetryGrillUntilDone(fishCoordinatesPageOne.ToArray(),
                         fishCoordinatesPageTwo.ToArray(), campfire,
-                        fishCoordinatesPageThree.ToArray(), fishCoordinatesPageFour.ToArray());
+                        fishCoordinatesPageThree.ToArray(), fishCoordinatesPageFour.ToArray(),
+                        keepCharacterInPlace);
                     if (completed)
                     {
                         result = "Envanterde tanınan tüm balıklar pişirildi.";
@@ -402,6 +434,60 @@ namespace MusicPlayerApp.Sources.GameHandler
                 standaloneWormStopwatch = null;
                 standaloneWormTimedOut = false;
             }
+        }
+
+        private bool OpenFisherShopAtCurrentPosition(out string result)
+        {
+            result = "Mevcut kamera açısından balıkçı görünmüyor; karakter ve kamera hareket ettirilmedi.";
+            if (CheckFisherShopPage()) return true;
+
+            Rectangle gameArea = coordinate.RectMetin2GameScreen();
+            bool[] targetFisher = imageObjects.RecordWantedColorAsBool(
+                ColorGame.MAP_BALIKCI_GREEN, imageObjects.arrayFisherWords);
+            Rectangle[] fisherMatches = imageObjects.FindAllImagesBoolArrays(
+                targetFisher, coordinate.RectFisherSample(), gameArea, ColorGame.MAP_BALIKCI_GREEN);
+
+            foreach (Rectangle fisherMatch in fisherMatches)
+            {
+                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
+
+                // Tıklama yalnızca mevcut ekranda görünen NPC adına gider; WASD ve kamera
+                // tuşları bu kurtarma yolunda kullanılmaz.
+                inputGame.MouseMoveAndPressLeft(
+                    fisherMatch.X + fisherMatch.Width / 2,
+                    fisherMatch.Y + fisherMatch.Height / 2);
+                TimerGame.SleepRandom(700, 1000);
+
+                for (int attempt = 0; attempt < 3; attempt++)
+                {
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
+                    if (CheckFisherShopPage()) return true;
+
+                    int[] targetOptions = imageObjects.RecordWantedColorIntArray(
+                        ColorGame.CHAT_WHITE_COLOR,
+                        screenShot.ImageArraySpecifiedArea(coordinate.RectFisherOptionsPage()));
+                    int[] sourceOptions = imageObjects.RecordWantedColorIntArray(
+                        ColorGame.CHAT_WHITE_COLOR, imageObjects.arrayBalikciAraEkran);
+                    if (imageObjects.CompareTwoArrayAdvanced(sourceOptions, targetOptions,
+                        ImageSensibilityLevel.SENSIBILTY_HIGH))
+                    {
+                        inputGame.MouseMoveAndPressLeft(coordinate.RectFisherOptionsPage().X,
+                            coordinate.RectFisherOptionsPage().Y);
+                        TimerGame.SleepRandom(1400, 1660);
+                    }
+                    else
+                    {
+                        TimerGame.SleepRandom(300, 500);
+                    }
+                }
+
+                if (CheckFisherShopPage()) return true;
+                // Etkileşim menüsü açılmadıysa NPC'ye gönderilmiş olası otomatik yürüme emrini iptal et.
+                inputGame.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
+            }
+
+            result = "Balıkçı dükkânı bulunduğu yerden açılamadı; karakter ve kamera hareket ettirilmedi.";
+            return false;
         }
 
         private void FindFisher()
@@ -809,7 +895,7 @@ namespace MusicPlayerApp.Sources.GameHandler
            
         }
 
-        private void BuyKampAtasiFromFisher()
+        private void BuyKampAtasiFromFisher(bool keepCharacterInPlace = false)
         {
             DebugPfCnsl.println("BuyKampAtasiFromFisher is called");
             TimerGame timerBuyKamp = new TimerGame();
@@ -867,6 +953,12 @@ namespace MusicPlayerApp.Sources.GameHandler
             }
             else
             {
+                if (keepCharacterInPlace)
+                {
+                    DebugPfCnsl.println("Balıkçı dükkânı kapalı; in-place pişirmede karakter hareket ettirilmiyor");
+                    return;
+                }
+
                 // Özyineleme yerine sınırlı deneme.
                 for (int retry = 0; retry < MAX_FISHER_RETRY; retry++)
                 {
@@ -1002,7 +1094,8 @@ namespace MusicPlayerApp.Sources.GameHandler
         }
 
         private bool RetryGrillUntilDone(Rectangle[][] pageOne, Rectangle[][] pageTwo,
-            Rectangle kampAtesiGreen, Rectangle[][] pageThree = null, Rectangle[][] pageFour = null)
+            Rectangle kampAtesiGreen, Rectangle[][] pageThree = null, Rectangle[][] pageFour = null,
+            bool keepCharacterInPlace = false)
         {
             for (int attempt = 0; attempt < MAX_GRILL_RETRY; attempt++)
             {
@@ -1020,7 +1113,17 @@ namespace MusicPlayerApp.Sources.GameHandler
 
                 DebugPfCnsl.println("Kızartma tamamlanamadı, kamp ateşi yenileniyor (deneme " + (attempt + 1) + ")");
 
-                if (!CheckFisherIsThere())
+                if (keepCharacterInPlace)
+                {
+                    string fisherShopError;
+                    if (!CheckFisherShopPage() &&
+                        !OpenFisherShopAtCurrentPosition(out fisherShopError))
+                    {
+                        DebugPfCnsl.println(fisherShopError);
+                        return false;
+                    }
+                }
+                else if (!CheckFisherIsThere())
                 {
                     return false;
                 }
@@ -1029,8 +1132,10 @@ namespace MusicPlayerApp.Sources.GameHandler
                     continue;
                 }
 
-                BuyKampAtasiFromFisher();
-                Rectangle newFire = FireKampAtesi();
+                BuyKampAtasiFromFisher(keepCharacterInPlace);
+                Rectangle newFire = keepCharacterInPlace
+                    ? FireKampAtesiAtCurrentPosition()
+                    : FireKampAtesi();
                 if (newFire != Rectangle.Empty)
                 {
                     kampAtesiGreen = newFire;
@@ -1178,6 +1283,60 @@ namespace MusicPlayerApp.Sources.GameHandler
             xGrillFishes = 0;
             yGrillFishes = 0;
             return true;
+        }
+
+        private Rectangle FireKampAtesiAtCurrentPosition()
+        {
+            CloseFisherShopPage();
+
+            Rectangle[] campfireItems = null;
+            InventoryPage[] pages =
+            {
+                InventoryPage.Page_1,
+                InventoryPage.Page_2,
+                InventoryPage.Page_3,
+                InventoryPage.Page_4
+            };
+            foreach (InventoryPage page in pages)
+            {
+                campfireItems = charThings.CheckObjectInventory(imageObjects.arrayKampIcon,
+                    coordinate.RectItemSlotSizeSample(), page);
+                if (campfireItems.Length > 0) break;
+            }
+
+            if (campfireItems == null || campfireItems.Length == 0)
+            {
+                DebugPfCnsl.println("Mevcut envanterde kamp ateşi yok; karakter/kamera hareket ettirilmedi");
+                return Rectangle.Empty;
+            }
+
+            bool[] campfireWord = imageObjects.RecordWantedColorAsBool(
+                ColorGame.MAP_CAMP_FIRE_GREEN, imageObjects.arrayKampAtesiWords);
+            Rectangle gameArea = coordinate.RectMetin2GameScreen();
+            Rectangle[] visibleFire = imageObjects.FindAllImagesBoolArrays(campfireWord,
+                coordinate.RectKampGreenSample(), gameArea, ColorGame.MAP_CAMP_FIRE_GREEN);
+            if (visibleFire.Length > 0) return visibleFire[0];
+
+            if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return Rectangle.Empty;
+            inputGame.MouseMoveAndPressRight(
+                campfireItems[0].X + campfireItems[0].Width / 2,
+                campfireItems[0].Y);
+            TimerGame.SleepRandom(300, 400);
+            if (DismissAtmkConfirmation()) return Rectangle.Empty;
+
+            // Ateşin adını yalnızca mevcut kamera görüntüsünde ara; S/W gibi kamera
+            // tuşları veya karakter hareketi kullanılmaz.
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return Rectangle.Empty;
+                visibleFire = imageObjects.FindAllImagesBoolArrays(campfireWord,
+                    coordinate.RectKampGreenSample(), gameArea, ColorGame.MAP_CAMP_FIRE_GREEN);
+                if (visibleFire.Length > 0) return visibleFire[0];
+                TimerGame.SleepRandom(250, 350);
+            }
+
+            DebugPfCnsl.println("Kamp ateşi mevcut kamera açısından görünmedi; kamera değiştirilmedi");
+            return Rectangle.Empty;
         }
 
         private Rectangle FireKampAtesi()

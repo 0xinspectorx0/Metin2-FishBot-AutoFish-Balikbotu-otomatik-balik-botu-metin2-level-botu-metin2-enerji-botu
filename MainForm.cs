@@ -419,14 +419,14 @@ namespace MusicPlayerApp
                     else
                     {
                         PrepareFishing prepareFishing = new PrepareFishing(imageObjects);
-                        grillCompleted = prepareFishing.GrillAllFishOnly(out result);
+                        grillCompleted = automaticInventoryRecovery
+                            ? prepareFishing.GrillAllFishAtCurrentPositionOnly(out result)
+                            : prepareFishing.GrillAllFishOnly(out result);
                         if (automaticInventoryRecovery && grillCompleted &&
                             !isAutomaticInventoryGrillRecoveryCancelled)
                         {
-                            ThreadGlobals.isFishingStopped = false;
-                            prepareFishing.GoToFishPlace();
-                            resumeFishingAfterGrill = !ThreadGlobals.isFishingStopped &&
-                                !isAutomaticInventoryGrillRecoveryCancelled;
+                            // Bu özel kurtarma mevcut konum/kamera açısından ayrılmaz.
+                            resumeFishingAfterGrill = true;
                         }
                     }
                 }
