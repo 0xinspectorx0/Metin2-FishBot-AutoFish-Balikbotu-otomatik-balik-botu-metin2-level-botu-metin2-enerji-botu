@@ -73,6 +73,10 @@ namespace MusicPlayerApp.Sources.ImageHandle
         public int[] arrayYabbieIcon { get; private set; }
         public int[] arrayAltinSudakIcon { get; private set; }
         public int[] arrayPalamutIcon { get; private set; }
+        public int[] arrayAltinFishIcon { get; private set; }
+        public int[] arrayPalamutFishIcon { get; private set; }
+        public int[] arrayYabbFishIcon { get; private set; }
+        public int[] arrayAtmkDialog { get; private set; }
         public int[] arrayKurbagaIcon { get; private set; }
         public int[] arrayKadifeIcon { get; private set; }
         public int[] arrayHamsiIcon { get; private set; }
@@ -196,6 +200,10 @@ namespace MusicPlayerApp.Sources.ImageHandle
 
 
             arrayYabbieIcon = convertBitMapToIntArray(ImagePathNames.yabbieIconFileName, PathWayStruct.PATH_FISHES);
+            arrayAltinFishIcon = convertBitMapToIntArray(ImagePathNames.altinFishIconFileName, PathWayStruct.PATH_FISHES);
+            arrayPalamutFishIcon = convertBitMapToIntArray(ImagePathNames.palamutFishIconFileName, PathWayStruct.PATH_FISHES);
+            arrayYabbFishIcon = convertBitMapToIntArray(ImagePathNames.yabbFishIconFileName, PathWayStruct.PATH_FISHES);
+            arrayAtmkDialog = convertBitMapToIntArray(ImagePathNames.atmkDialogFileName, PathWayStruct.PATH_IMAGE);
             arrayAltinSudakIcon = convertBitMapToIntArray(ImagePathNames.altinSudakIconFileName, PathWayStruct.PATH_FISHES);
             arrayPalamutIcon = convertBitMapToIntArray(ImagePathNames.palamutIconFileName, PathWayStruct.PATH_FISHES);
             arrayKurbagaIcon = convertBitMapToIntArray(ImagePathNames.kurbagaIconFileName, PathWayStruct.PATH_FISHES);

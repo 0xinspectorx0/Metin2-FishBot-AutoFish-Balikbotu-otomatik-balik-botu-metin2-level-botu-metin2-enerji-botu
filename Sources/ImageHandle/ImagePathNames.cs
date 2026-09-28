@@ -39,6 +39,10 @@ namespace MusicPlayerApp.Sources.ImageHandle
         public static readonly string altinSudakIconFileName = "altinSudakIcon.png";
         public static readonly string palamutIconFileName = "palamutIcon.png";
         public static readonly string yabbieIconFileName = "yabbieIcon.png";
+        public static readonly string altinFishIconFileName = "altin.png";
+        public static readonly string palamutFishIconFileName = "palm.png";
+        public static readonly string yabbFishIconFileName = "yabb.png";
+        public static readonly string atmkDialogFileName = "atmk.png";
         public static readonly string kurbagaIconFileName = "kurbagaIcon.png";
         public static readonly string kadifeIconFileName = "kadifeIcon.png";
         public static readonly string hamsiIconFileName = "HamsiIcon.png";

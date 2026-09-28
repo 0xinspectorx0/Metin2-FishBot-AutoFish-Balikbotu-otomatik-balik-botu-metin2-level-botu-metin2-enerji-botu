@@ -48,6 +48,20 @@ namespace MusicPlayerApp.Sources.GameHandler
         private Stopwatch standaloneWormStopwatch;
         private bool standaloneWormTimedOut;
         private const int MAX_STANDALONE_WORM_SECONDS = 240;
+        private const int MAX_STANDALONE_ATMK_RESTARTS = 8;
+        private bool standaloneAtmkRestartRequested;
+
+        private sealed class FishIconForGrilling
+        {
+            public int[] Image { get; private set; }
+            public Rectangle SampleRect { get; private set; }
+
+            public FishIconForGrilling(int[] image, int width, int height)
+            {
+                Image = image;
+                SampleRect = new Rectangle(0, 0, width, height);
+            }
+        }
 
         List<Rectangle> listWorm200;
 
@@ -109,6 +123,7 @@ namespace MusicPlayerApp.Sources.GameHandler
             bool previousHepsiSelectedState = ThreadGlobals.isHepsiSelected;
             isStandaloneGrillAction = true;
             standaloneGrillTimedOut = false;
+            standaloneAtmkRestartRequested = false;
             standaloneGrillStopwatch = Stopwatch.StartNew();
             ThreadGlobals.isFishingStopped = false;
             ThreadGlobals.isSettingButtonSeemed = true;
@@ -117,75 +132,114 @@ namespace MusicPlayerApp.Sources.GameHandler
 
             try
             {
-                List<Rectangle[]> fishCoordinatesPageOne = new List<Rectangle[]>();
-                List<Rectangle[]> fishCoordinatesPageTwo = new List<Rectangle[]>();
-                List<int[]> allFishIcons = GetAllFishTypesForGrilling();
+                List<FishIconForGrilling> allFishIcons = GetAllFishTypesForGrilling();
+                int restartCount = 0;
 
-                charThings.OpenCloseInventory(true);
-                foreach (int[] fishIcon in allFishIcons)
+                while (true)
                 {
+                    List<Rectangle[]> fishCoordinatesPageOne = new List<Rectangle[]>();
+                    List<Rectangle[]> fishCoordinatesPageTwo = new List<Rectangle[]>();
+
+                    charThings.OpenCloseInventory(true);
+                    foreach (FishIconForGrilling fishIcon in allFishIcons)
+                    {
+                        if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                        {
+                            result = "Balık pişirme işlemi durduruldu.";
+                            return false;
+                        }
+
+                        fishCoordinatesPageOne.Add(charThings.CheckObjectInventory(fishIcon.Image,
+                            fishIcon.SampleRect, InventoryPage.Page_1));
+                        fishCoordinatesPageTwo.Add(charThings.CheckObjectInventory(fishIcon.Image,
+                            fishIcon.SampleRect, InventoryPage.Page_2));
+                    }
+                    charThings.OpenCloseInventory(false);
+
+                    int fishCount = CountTotalFish(fishCoordinatesPageOne) +
+                        CountTotalFish(fishCoordinatesPageTwo);
+                    if (fishCount == 0)
+                    {
+                        result = restartCount > 0
+                            ? "Envanterde kalan balıklar da pişirildi."
+                            : "Envanterde tanınan balık bulunamadı.";
+                        return restartCount > 0;
+                    }
+
+                    // Balıkçı dükkânı zaten açıksa tekrar aramaya çıkma.
+                    if (!CheckFisherShopPage())
+                    {
+                        FindFisher();
+                    }
+
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                    {
+                        result = "Balık pişirme işlemi durduruldu.";
+                        return false;
+                    }
+                    if (standaloneGrillTimedOut || !CheckFisherShopPage())
+                    {
+                        result = standaloneGrillTimedOut
+                            ? "Balıkçı araması zaman aşımına uğradı."
+                            : "Balıkçı dükkânı açılamadı.";
+                        return false;
+                    }
+
+                    BuyKampAtasiFromFisher();
                     if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
                     {
                         result = "Balık pişirme işlemi durduruldu.";
                         return false;
                     }
 
-                    fishCoordinatesPageOne.Add(charThings.CheckObjectInventory(fishIcon,
-                        coordinate.RectItemSlotSizeSample(), InventoryPage.Page_1));
-                    fishCoordinatesPageTwo.Add(charThings.CheckObjectInventory(fishIcon,
-                        coordinate.RectItemSlotSizeSample(), InventoryPage.Page_2));
-                }
-                charThings.OpenCloseInventory(false);
+                    Rectangle campfire = FireKampAtesi();
+                    if (campfire == Rectangle.Empty)
+                    {
+                        if (standaloneAtmkRestartRequested)
+                        {
+                            standaloneAtmkRestartRequested = false;
+                            restartCount++;
+                            if (restartCount >= MAX_STANDALONE_ATMK_RESTARTS)
+                            {
+                                result = "Atmk onayı nedeniyle pişirme yeniden başlatma sınırına ulaşıldı.";
+                                return false;
+                            }
+                            continue;
+                        }
 
-                int fishCount = CountTotalFish(fishCoordinatesPageOne) +
-                    CountTotalFish(fishCoordinatesPageTwo);
-                if (fishCount == 0)
-                {
-                    result = "Envanterde tanınan balık bulunamadı.";
-                    return false;
-                }
+                        result = "Kamp ateşi hazırlanamadı; işlem durduruldu.";
+                        return false;
+                    }
 
-                // Balıkçı dükkânı zaten açıksa tekrar aramaya çıkma.
-                if (!CheckFisherShopPage())
-                {
-                    FindFisher();
-                }
+                    bool completed = RetryGrillUntilDone(fishCoordinatesPageOne.ToArray(),
+                        fishCoordinatesPageTwo.ToArray(), campfire);
+                    if (completed)
+                    {
+                        result = "Envanterde tanınan tüm balıklar pişirildi.";
+                        return true;
+                    }
 
-                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
-                {
-                    result = "Balık pişirme işlemi durduruldu.";
-                    return false;
-                }
-                if (standaloneGrillTimedOut || !CheckFisherShopPage())
-                {
-                    result = standaloneGrillTimedOut
-                        ? "Balıkçı araması zaman aşımına uğradı."
-                        : "Balıkçı dükkânı açılamadı.";
-                    return false;
-                }
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                    {
+                        result = "Balık pişirme işlemi durduruldu.";
+                        return false;
+                    }
+                    if (!standaloneAtmkRestartRequested)
+                    {
+                        result = "Balıkların tamamı pişirilemedi; başka işlem başlatılmadı.";
+                        return false;
+                    }
 
-                BuyKampAtasiFromFisher();
-                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
-                {
-                    result = "Balık pişirme işlemi durduruldu.";
-                    return false;
-                }
+                    standaloneAtmkRestartRequested = false;
+                    restartCount++;
+                    if (restartCount >= MAX_STANDALONE_ATMK_RESTARTS)
+                    {
+                        result = "Atmk onayı nedeniyle pişirme yeniden başlatma sınırına ulaşıldı.";
+                        return false;
+                    }
 
-                Rectangle campfire = FireKampAtesi();
-                if (campfire == Rectangle.Empty)
-                {
-                    result = "Kamp ateşi hazırlanamadı; işlem durduruldu.";
-                    return false;
+                    DebugPfCnsl.println("Atmk onayı kapatıldı; balık listesi baştan taranıp pişirme yeniden başlatılıyor.");
                 }
-
-                bool completed = RetryGrillUntilDone(fishCoordinatesPageOne.ToArray(),
-                    fishCoordinatesPageTwo.ToArray(), campfire);
-                result = completed
-                    ? "Envanterde tanınan tüm balıklar pişirildi."
-                    : (ThreadGlobals.isFishingStopped
-                        ? "Balık pişirme işlemi durduruldu."
-                        : "Balıkların tamamı pişirilemedi; başka işlem başlatılmadı.");
-                return completed;
             }
             catch (Exception ex)
             {
@@ -205,6 +259,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                 ThreadGlobals.isPrepareFishingStarted = false;
                 isStandaloneGrillAction = false;
                 standaloneGrillStopwatch = null;
+                standaloneAtmkRestartRequested = false;
             }
         }
 
@@ -749,7 +804,7 @@ namespace MusicPlayerApp.Sources.GameHandler
 
                 if (!ThreadGlobals.isHepsiSelected)
                 {
-                    List<int[]> selectedFishIcons = GetFishTypesForGrilling();
+                    List<FishIconForGrilling> selectedFishIcons = GetFishTypesForGrilling();
                     if (selectedFishIcons.Count == 0)
                     {
                         DebugPfCnsl.println("Kızartılacak balık seçilmemiş, kızartma atlandı");
@@ -759,14 +814,14 @@ namespace MusicPlayerApp.Sources.GameHandler
                     List<Rectangle[]> fishCoordinatesPageOne = new List<Rectangle[]>();
                     List<Rectangle[]> fishCoordinatesPageTwo = new List<Rectangle[]>();
 
-                    foreach (int[] fishIcon in selectedFishIcons)
+                    foreach (FishIconForGrilling fishIcon in selectedFishIcons)
                     {
                         if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return;
 
-                        fishCoordinatesPageOne.Add(charThings.CheckObjectInventory(fishIcon,
-                            coordinate.RectItemSlotSizeSample(), InventoryPage.Page_1));
-                        fishCoordinatesPageTwo.Add(charThings.CheckObjectInventory(fishIcon,
-                            coordinate.RectItemSlotSizeSample(), InventoryPage.Page_2));
+                        fishCoordinatesPageOne.Add(charThings.CheckObjectInventory(fishIcon.Image,
+                            fishIcon.SampleRect, InventoryPage.Page_1));
+                        fishCoordinatesPageTwo.Add(charThings.CheckObjectInventory(fishIcon.Image,
+                            fishIcon.SampleRect, InventoryPage.Page_2));
                     }
 
                     // Eski kod yalnızca ilk üç türün birinci sayfasına bakıyordu; artık
@@ -818,6 +873,29 @@ namespace MusicPlayerApp.Sources.GameHandler
         /// dönüyordu. Artık deneme sayısı sınırlı ve her turda botun durdurulup
         /// durdurulmadığı kontrol ediliyor.
         /// </remarks>
+        private bool DismissAtmkConfirmation()
+        {
+            Rectangle yereAtmaArea = coordinate.RectYereAtmaAlgilama();
+            Rectangle atmkSearchArea = new Rectangle(yereAtmaArea.X - 48, yereAtmaArea.Y,
+                yereAtmaArea.Width + 96, yereAtmaArea.Height);
+            Rectangle atmkDialog = imageObjects.FindImageInArea(imageObjects.arrayAtmkDialog,
+                new Rectangle(0, 0, 93, 15), atmkSearchArea);
+
+            if (atmkDialog == Rectangle.Empty)
+            {
+                return false;
+            }
+
+            DebugPfCnsl.println("Atmk onay penceresi algılandı; ESC ile kapatılıyor.");
+            inputGame.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
+            TimerGame.SleepRandom(150, 250);
+            if (isStandaloneGrillAction)
+            {
+                standaloneAtmkRestartRequested = true;
+            }
+            return true;
+        }
+
         private bool RetryGrillUntilDone(Rectangle[][] pageOne, Rectangle[][] pageTwo, Rectangle kampAtesiGreen)
         {
             for (int attempt = 0; attempt < MAX_GRILL_RETRY; attempt++)
@@ -828,6 +906,10 @@ namespace MusicPlayerApp.Sources.GameHandler
                 if (GrillFishes(pageOne, pageTwo, kampAtesiGreen))
                 {
                     return true;
+                }
+                if (standaloneAtmkRestartRequested)
+                {
+                    return false;
                 }
 
                 DebugPfCnsl.println("Kızartma tamamlanamadı, kamp ateşi yenileniyor (deneme " + (attempt + 1) + ")");
@@ -906,6 +988,8 @@ namespace MusicPlayerApp.Sources.GameHandler
 
                                     TimerGame.SleepRandom(300, 400);
 
+                                    if (DismissAtmkConfirmation()) return false;
+
                                     if (imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayYereAtmaDialog,
                                         screenShot.ImageArraySpecifiedArea(coordinate.RectYereAtmaAlgilama()),
                                         ImageSensibilityLevel.SENSIBILTY_HIGH))
@@ -955,6 +1039,8 @@ namespace MusicPlayerApp.Sources.GameHandler
                                         kampAtesiGreen.Y + kampAtesiGreen.Height / 2);
 
                                     TimerGame.SleepRandom(200, 400);
+
+                                    if (DismissAtmkConfirmation()) return false;
 
                                     if (imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayYereAtmaDialog,
                                         screenShot.ImageArraySpecifiedArea(coordinate.RectYereAtmaAlgilama()),
@@ -1020,6 +1106,8 @@ namespace MusicPlayerApp.Sources.GameHandler
                                             kampAtesiGreen.Y + kampAtesiGreen.Height / 2);
 
                                     TimerGame.SleepRandom(200, 400);
+
+                                    if (DismissAtmkConfirmation()) return false;
 
                                     if (imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayYereAtmaDialog,
                                         screenShot.ImageArraySpecifiedArea(coordinate.RectYereAtmaAlgilama()),
@@ -1088,6 +1176,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                             kampAtesiIconInvent[0].Y);
 
                         TimerGame.SleepRandom(300, 400);
+                        if (DismissAtmkConfirmation()) return Rectangle.Empty;
                     }
                     else
                     {
@@ -1115,38 +1204,53 @@ namespace MusicPlayerApp.Sources.GameHandler
         /// Liste dönmek hem null indeks hatalarını kaldırır hem de yeni balık türü eklemeyi
         /// tek satıra indirir.
         /// </remarks>
-        private List<int[]> GetFishTypesForGrilling()
+        private List<FishIconForGrilling> GetFishTypesForGrilling()
         {
-            List<int[]> fishTypes = new List<int[]>();
+            List<FishIconForGrilling> fishTypes = new List<FishIconForGrilling>();
 
-            if (ThreadGlobals.isYabbieSelected) fishTypes.Add(imageObjects.arrayYabbieIcon);
-            if (ThreadGlobals.isAltinSudakSelected) fishTypes.Add(imageObjects.arrayAltinSudakIcon);
-            if (ThreadGlobals.isPalamutSelected) fishTypes.Add(imageObjects.arrayPalamutIcon);
-            if (ThreadGlobals.isKurbagaSelected) fishTypes.Add(imageObjects.arrayKurbagaIcon);
-            if (ThreadGlobals.isKadifeSelected) fishTypes.Add(imageObjects.arrayKadifeIcon);
+            if (ThreadGlobals.isYabbieSelected)
+            {
+                fishTypes.Add(new FishIconForGrilling(imageObjects.arrayYabbieIcon, 32, 16));
+                fishTypes.Add(new FishIconForGrilling(imageObjects.arrayYabbFishIcon, 42, 34));
+            }
+            if (ThreadGlobals.isAltinSudakSelected)
+            {
+                fishTypes.Add(new FishIconForGrilling(imageObjects.arrayAltinSudakIcon, 32, 16));
+                fishTypes.Add(new FishIconForGrilling(imageObjects.arrayAltinFishIcon, 34, 32));
+            }
+            if (ThreadGlobals.isPalamutSelected)
+            {
+                fishTypes.Add(new FishIconForGrilling(imageObjects.arrayPalamutIcon, 32, 16));
+                fishTypes.Add(new FishIconForGrilling(imageObjects.arrayPalamutFishIcon, 39, 38));
+            }
+            if (ThreadGlobals.isKurbagaSelected)
+                fishTypes.Add(new FishIconForGrilling(imageObjects.arrayKurbagaIcon, 32, 16));
+            if (ThreadGlobals.isKadifeSelected)
+                fishTypes.Add(new FishIconForGrilling(imageObjects.arrayKadifeIcon, 32, 16));
 
             // NOT: Denizkızı için Fishes klasöründe ENVANTER ikonu bulunmuyor
             // (yalnızca sohbet yazısı referansı 'denizChat.png' var). Bu yüzden
             // kızartma listesine eklenemiyor; "Hepsi" seçeneği ile kızartılır.
-            // Denizkızı envanter ikonu eklenirse aşağıdaki satır açılmalıdır:
-            // if (ThreadGlobals.isDenizkizSelected) fishTypes.Add(imageObjects.arrayDenizkizIcon);
 
             return fishTypes;
         }
 
         /// <summary>Envanter ikonu bulunan bütün balık türleri.</summary>
-        private List<int[]> GetAllFishTypesForGrilling()
+        private List<FishIconForGrilling> GetAllFishTypesForGrilling()
         {
-            return new List<int[]>
+            return new List<FishIconForGrilling>
             {
-                imageObjects.arrayYabbieIcon,
-                imageObjects.arrayAltinSudakIcon,
-                imageObjects.arrayPalamutIcon,
-                imageObjects.arrayKurbagaIcon,
-                imageObjects.arrayKadifeIcon,
-                imageObjects.arrayHamsiIcon,
-                imageObjects.arrayZarganaIcon,
-                imageObjects.arrayKralYengeciIcon
+                new FishIconForGrilling(imageObjects.arrayYabbieIcon, 32, 16),
+                new FishIconForGrilling(imageObjects.arrayAltinSudakIcon, 32, 16),
+                new FishIconForGrilling(imageObjects.arrayPalamutIcon, 32, 16),
+                new FishIconForGrilling(imageObjects.arrayKurbagaIcon, 32, 16),
+                new FishIconForGrilling(imageObjects.arrayKadifeIcon, 32, 16),
+                new FishIconForGrilling(imageObjects.arrayHamsiIcon, 32, 16),
+                new FishIconForGrilling(imageObjects.arrayZarganaIcon, 32, 16),
+                new FishIconForGrilling(imageObjects.arrayKralYengeciIcon, 32, 16),
+                new FishIconForGrilling(imageObjects.arrayAltinFishIcon, 34, 32),
+                new FishIconForGrilling(imageObjects.arrayPalamutFishIcon, 39, 38),
+                new FishIconForGrilling(imageObjects.arrayYabbFishIcon, 42, 34)
             };
         }
 
