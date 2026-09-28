@@ -381,6 +381,12 @@ namespace MusicPlayerApp.Sources
             return new Rectangle(630 + currentMetin2Icon.X, 270 + currentMetin2Icon.Y,
                 180, 300);
         }
+        public Rectangle RectInventoryPageButtonArea()
+        {
+            Point currentMetin2Icon = CheckGameScreenPlace();
+            return new Rectangle(630 + currentMetin2Icon.X, 239 + currentMetin2Icon.Y,
+                180, 36);
+        }
         public Rectangle RectTradeDetectionArea()
         {
             Point currentMetin2Icon = CheckGameScreenPlace();
@@ -421,6 +427,16 @@ namespace MusicPlayerApp.Sources
         {
             Point currentMetin2Icon = CheckGameScreenPlace();
             return new Point(698 + currentMetin2Icon.X, 255 + currentMetin2Icon.Y);
+        }
+        public Point PointInventPageThree()
+        {
+            Point currentMetin2Icon = CheckGameScreenPlace();
+            return new Point(739 + currentMetin2Icon.X, 255 + currentMetin2Icon.Y);
+        }
+        public Point PointInventPageFour()
+        {
+            Point currentMetin2Icon = CheckGameScreenPlace();
+            return new Point(780 + currentMetin2Icon.X, 255 + currentMetin2Icon.Y);
         }
         public Point PointFisherShopKampAtesi()
         {

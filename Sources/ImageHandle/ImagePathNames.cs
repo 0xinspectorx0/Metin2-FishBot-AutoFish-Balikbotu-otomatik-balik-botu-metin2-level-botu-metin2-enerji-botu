@@ -29,6 +29,8 @@ namespace MusicPlayerApp.Sources.ImageHandle
         public static readonly string pageTwoFileName = "pageTwo.png";
         public static readonly string pageThreeFileName = "pageThree.png";
         public static readonly string pageFourFileName = "pageFour.png";
+        public static readonly string inventoryPageThreeTabFileName = "uc.png";
+        public static readonly string inventoryPageFourTabFileName = "dort.png";
         public static readonly string settingButtonFileName = "settingButton.png";
         public static readonly string yereAtmaFileName = "yereAtma.png";
         public static readonly string worm200FileName = "worm200.png";

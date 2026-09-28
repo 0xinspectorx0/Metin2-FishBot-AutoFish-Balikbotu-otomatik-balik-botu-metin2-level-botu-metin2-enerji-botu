@@ -1,6 +1,7 @@
 ﻿using Metin2AutoFishCSharp.Sources;
 using MusicPlayerApp.Debugs;
 using MusicPlayerApp.Sources.GameHandler;
+using MusicPlayerApp.Sources.CoordinatesHandler;
 using MusicPlayerApp.Sources.ImageHandle;
 using System;
 using System.Collections.Generic;
@@ -26,7 +27,9 @@ namespace MusicPlayerApp.Sources.CharacterHandle
     public enum InventoryPage
     {
         Page_1,
-        Page_2
+        Page_2,
+        Page_3,
+        Page_4
     }
     public enum InsertCountSetting
     {
@@ -286,7 +289,7 @@ namespace MusicPlayerApp.Sources.CharacterHandle
                 inputGame.MouseMoveAndPressLeft(coor.PointInventPageOne().X,
                     coor.PointInventPageOne().Y);
             }
-            else if(page == InventoryPage.Page_2) 
+            else if (page == InventoryPage.Page_2)
             {
                 if ((ThreadGlobals.CheckGameIsStopped() || !ThreadGlobals.isSettingButtonSeemed)
                     || ThreadGlobals.isCharKilled)
@@ -297,6 +300,37 @@ namespace MusicPlayerApp.Sources.CharacterHandle
 
                 inputGame.MouseMoveAndPressLeft(coor.PointInventPageTwo().X,
                     coor.PointInventPageTwo().Y);
+            }
+            else if (page == InventoryPage.Page_3 || page == InventoryPage.Page_4)
+            {
+                if ((ThreadGlobals.CheckGameIsStopped() || !ThreadGlobals.isSettingButtonSeemed)
+                    || ThreadGlobals.isCharKilled)
+                {
+                    DebugPfCnsl.println("ClickWantedInventoryPage is returned");
+                    return;
+                }
+
+                bool isPageThree = page == InventoryPage.Page_3;
+                int[] pageTabImage = isPageThree
+                    ? imageObject.arrayInventoryPageThreeTab
+                    : imageObject.arrayInventoryPageFourTab;
+                Rectangle pageTabSample = new Rectangle(0, 0, 52, isPageThree ? 24 : 25);
+                Rectangle[] pageTabMatches = imageObject.FindAllImagesOnScreen(
+                    pageTabImage, pageTabSample, coor.RectInventoryPageButtonArea());
+
+                Point pagePoint;
+                if (pageTabMatches.Length > 0)
+                {
+
+                    Point gameOffset = CheckGameCoordinate.currentScreenGamePoint;
+                    pagePoint = new Point(pageTabMatches[0].X - gameOffset.X + pageTabMatches[0].Width / 2,
+                        pageTabMatches[0].Y - gameOffset.Y + pageTabMatches[0].Height / 2);
+                }
+                else
+                {
+                    pagePoint = isPageThree ? coor.PointInventPageThree() : coor.PointInventPageFour();
+                }
+                inputGame.MouseMoveAndPressLeft(pagePoint.X, pagePoint.Y);
             }
         }
 
@@ -310,40 +344,54 @@ namespace MusicPlayerApp.Sources.CharacterHandle
             return rects;
         }
 
-        public Rectangle[] CheckObjectTwoPageInventory(int[] targetImage, Rectangle targetRect)
-            {
-            ClickWantedInventoryPage(InventoryPage.Page_1);
-
-            Rectangle[] rectsPage1 = imageObject.FindAllImagesOnScreen(targetImage, targetRect, coor.RectInventoryPageArea());
-
-            ClickWantedInventoryPage(InventoryPage.Page_2);
-
-            Rectangle[] rectsPage2 = imageObject.FindAllImagesOnScreen(targetImage, targetRect, coor.RectInventoryPageArea());
-
+        public Rectangle[] CheckObjectAllInventoryPages(int[] targetImage, Rectangle targetRect)
+        {
             List<Rectangle> totalListRects = new List<Rectangle>();
-
-            if(rectsPage1 != null && rectsPage1.Length > 0)
+            InventoryPage[] pages =
             {
-                foreach (var rect1 in rectsPage1)
+                InventoryPage.Page_1,
+                InventoryPage.Page_2,
+                InventoryPage.Page_3,
+                InventoryPage.Page_4
+            };
+            Rectangle[] separators = { PageOneRectangle(), PageTwoRectangle(), PageThreeRectangle() };
+
+            for (int pageIndex = 0; pageIndex < pages.Length; pageIndex++)
+            {
+                ClickWantedInventoryPage(pages[pageIndex]);
+                Rectangle[] pageRects = imageObject.FindAllImagesOnScreen(
+                    targetImage, targetRect, coor.RectInventoryPageArea());
+                if (pageRects != null && pageRects.Length > 0)
                 {
-                    totalListRects.Add(rect1);
+                    totalListRects.AddRange(pageRects);
+                }
+
+                if (pageIndex < separators.Length)
+                {
+                    totalListRects.Add(separators[pageIndex]);
                 }
             }
-           
+
+            return totalListRects.ToArray();
+        }
+
+        // Legacy callers in potion and energy-crystal handlers intentionally retain
+        // their original two-page scan semantics; worm preparation uses the four-page API.
+        public Rectangle[] CheckObjectTwoPageInventory(int[] targetImage, Rectangle targetRect)
+        {
+            List<Rectangle> totalListRects = new List<Rectangle>();
+            ClickWantedInventoryPage(InventoryPage.Page_1);
+            Rectangle[] pageOne = imageObject.FindAllImagesOnScreen(
+                targetImage, targetRect, coor.RectInventoryPageArea());
+            if (pageOne != null && pageOne.Length > 0) totalListRects.AddRange(pageOne);
 
             totalListRects.Add(PageOneRectangle());
-
-            if(rectsPage2 != null && rectsPage2.Length > 0)
-            {
-                foreach (var rect2 in rectsPage2)
-                {
-                    totalListRects.Add(rect2);
-                }
-            }
-            
-          
+            ClickWantedInventoryPage(InventoryPage.Page_2);
+            Rectangle[] pageTwo = imageObject.FindAllImagesOnScreen(
+                targetImage, targetRect, coor.RectInventoryPageArea());
+            if (pageTwo != null && pageTwo.Length > 0) totalListRects.AddRange(pageTwo);
             return totalListRects.ToArray();
-             }
+        }
 
         public Rectangle[] CheckObjectFromSkillSlots(int[] sourceItemIcon,Rectangle sourceItemSize)
         {
@@ -487,13 +535,13 @@ namespace MusicPlayerApp.Sources.CharacterHandle
         {
             DebugPfCnsl.println("InsertSkillSlotsToObject function is called");
             
-            Rectangle [] rectsCoor = CheckObjectTwoPageInventory(itemImage200, rectItemImageSize);
+            Rectangle[] rectsCoor = CheckObjectAllInventoryPages(itemImage200, rectItemImageSize);
 
           
         //    DebugPfCnsl.PrintArray(rectsCoor);
 
             TimerGame timerInsert = new TimerGame();
-            short item200Counter = 0;
+            int item200Counter = 0;
             int[] arrayClippedImage = new int[1];
 
             if (insertObjectCount == InsertCountSetting.INSERT_COUNT_32)
@@ -506,9 +554,9 @@ namespace MusicPlayerApp.Sources.CharacterHandle
             ClickWantedInventoryPage(InventoryPage.Page_1);
 
             DebugPfCnsl.println("rectsCoor lenght = " + rectsCoor.Length);
-            if (rectsCoor.Length <= 0)
+            if (rectsCoor.Length <= 3)
             {
-                DebugPfCnsl.println("InsertSkillSlotsToObject rectsCoor lenght 0 returned false");
+                DebugPfCnsl.println("InsertSkillSlotsToObject: envanter sayfalarında istenen nesne bulunamadı");
                 return false;
             }
           
@@ -528,32 +576,22 @@ namespace MusicPlayerApp.Sources.CharacterHandle
                             DebugPfCnsl.println("ya oyun durduruldu yada setting butonu görülmüyor");
                             return false;
                         }
-                        if(insertObjectCount == InsertCountSetting.INSERT_COUNT_32)
+                        while (item200Counter < rectsCoor.Length &&
+                            IsInventoryPageSeparator(rectsCoor[item200Counter]))
                         {
-                            if (rectsCoor[item200Counter].X == PageOneRectangle().X)
-                            {
+                            Rectangle separator = rectsCoor[item200Counter++];
+                            if (separator.X == PageOneRectangle().X)
                                 ClickWantedInventoryPage(InventoryPage.Page_2);
-                                item200Counter++;
-                            }
+                            else if (separator.X == PageTwoRectangle().X)
+                                ClickWantedInventoryPage(InventoryPage.Page_3);
+                            else if (separator.X == PageThreeRectangle().X)
+                                ClickWantedInventoryPage(InventoryPage.Page_4);
                         }
-                        else
+
+                        if (item200Counter >= rectsCoor.Length)
                         {
-                            if(rectsCoor.Length > 1)
-                            {
-                                if (rectsCoor[item200Counter].X == PageOneRectangle().X)
-                                {
-                                    ClickWantedInventoryPage(InventoryPage.Page_2);
-                                    item200Counter++;
-                                }
-                            }
-                           else if(rectsCoor.Length == 1)
-                            {
-                                if (rectsCoor[item200Counter].X == PageOneRectangle().X)
-                                {
-                                    DebugPfCnsl.println("istenilen nesne tespit edilemedi");
-                                    return false;
-                                }
-                            }
+                            DebugPfCnsl.println("Yeterli sayıda nesne bulunamadı; skill slot aktarımı durduruldu");
+                            return false;
                         }
                        
                         if (i < 4)
@@ -742,7 +780,7 @@ namespace MusicPlayerApp.Sources.CharacterHandle
             TimerGame timerGrillFishes = new TimerGame();
 
 
-            for (; pageCombineItems200 <= 2; pageCombineItems200++)
+            for (; pageCombineItems200 <= 4; pageCombineItems200++)
             {
                 if(isCombineItem200failed)
                 {
@@ -750,15 +788,15 @@ namespace MusicPlayerApp.Sources.CharacterHandle
                     yCombineItems = 0;
                     pageCombineItems200 = 1;
                 }
+                storeValue = 0;
                 if (pageCombineItems200 == 1)
-                { 
                     ClickWantedInventoryPage(InventoryPage.Page_1);
-                }
-                else
-                {
-                    storeValue = 0;
+                else if (pageCombineItems200 == 2)
                     ClickWantedInventoryPage(InventoryPage.Page_2);
-                }
+                else if (pageCombineItems200 == 3)
+                    ClickWantedInventoryPage(InventoryPage.Page_3);
+                else
+                    ClickWantedInventoryPage(InventoryPage.Page_4);
 
                 for (; yCombineItems < 9; yCombineItems++)
                 {
@@ -870,7 +908,7 @@ namespace MusicPlayerApp.Sources.CharacterHandle
                 
             }
 
-            Rectangle[] rect200ItemCount = CheckObjectTwoPageInventory(targetImage, coor.RectItemSlotSizeSample()); 
+            Rectangle[] rect200ItemCount = CheckObjectAllInventoryPages(targetImage, coor.RectItemSlotSizeSample());
             
 
             xCombineItems = 0;
@@ -882,7 +920,7 @@ namespace MusicPlayerApp.Sources.CharacterHandle
             {
                 DebugPfCnsl.println("CombineItemsTo200 counted item =  " + (rect200ItemCount.Length));
 
-                return rect200ItemCount.Length -1;
+                return Math.Max(0, rect200ItemCount.Length - 3);
             }
             else
             {
@@ -900,8 +938,21 @@ namespace MusicPlayerApp.Sources.CharacterHandle
 
         public Rectangle PageTwoRectangle()
         {
-            return new Rectangle(5555,5555,1,1);
+            return new Rectangle(5555, 5555, 1, 1);
         }
+
+        public Rectangle PageThreeRectangle()
+        {
+            return new Rectangle(3333, 3333, 1, 1);
+        }
+
+        private bool IsInventoryPageSeparator(Rectangle rectangle)
+        {
+            return rectangle.X == PageOneRectangle().X ||
+                rectangle.X == PageTwoRectangle().X ||
+                rectangle.X == PageThreeRectangle().X;
+        }
+
         private void CombineTwoItem(Rectangle[] rectItem, Rectangle[] recstWhite200)
         {
             Rectangle[] rect2Worm = new Rectangle[2];

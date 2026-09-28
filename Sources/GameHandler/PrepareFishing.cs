@@ -139,6 +139,8 @@ namespace MusicPlayerApp.Sources.GameHandler
                 {
                     List<Rectangle[]> fishCoordinatesPageOne = new List<Rectangle[]>();
                     List<Rectangle[]> fishCoordinatesPageTwo = new List<Rectangle[]>();
+                    List<Rectangle[]> fishCoordinatesPageThree = new List<Rectangle[]>();
+                    List<Rectangle[]> fishCoordinatesPageFour = new List<Rectangle[]>();
 
                     charThings.OpenCloseInventory(true);
                     foreach (FishIconForGrilling fishIcon in allFishIcons)
@@ -153,11 +155,17 @@ namespace MusicPlayerApp.Sources.GameHandler
                             fishIcon.SampleRect, InventoryPage.Page_1));
                         fishCoordinatesPageTwo.Add(charThings.CheckObjectInventory(fishIcon.Image,
                             fishIcon.SampleRect, InventoryPage.Page_2));
+                        fishCoordinatesPageThree.Add(charThings.CheckObjectInventory(fishIcon.Image,
+                            fishIcon.SampleRect, InventoryPage.Page_3));
+                        fishCoordinatesPageFour.Add(charThings.CheckObjectInventory(fishIcon.Image,
+                            fishIcon.SampleRect, InventoryPage.Page_4));
                     }
                     charThings.OpenCloseInventory(false);
 
                     int fishCount = CountTotalFish(fishCoordinatesPageOne) +
-                        CountTotalFish(fishCoordinatesPageTwo);
+                        CountTotalFish(fishCoordinatesPageTwo) +
+                        CountTotalFish(fishCoordinatesPageThree) +
+                        CountTotalFish(fishCoordinatesPageFour);
                     if (fishCount == 0)
                     {
                         result = restartCount > 0
@@ -212,7 +220,8 @@ namespace MusicPlayerApp.Sources.GameHandler
                     }
 
                     bool completed = RetryGrillUntilDone(fishCoordinatesPageOne.ToArray(),
-                        fishCoordinatesPageTwo.ToArray(), campfire);
+                        fishCoordinatesPageTwo.ToArray(), campfire,
+                        fishCoordinatesPageThree.ToArray(), fishCoordinatesPageFour.ToArray());
                     if (completed)
                     {
                         result = "Envanterde tanınan tüm balıklar pişirildi.";
@@ -731,7 +740,9 @@ namespace MusicPlayerApp.Sources.GameHandler
                 //charThings.ClickWantedInventoryPage(InventoryPage.Page_1);
                 
                 while (charThings.CheckObjectInventory(imageObjects.arrayKampIcon, coordinate.RectItemSlotSizeSample(), InventoryPage.Page_1).Length <= 0 &&
-                    charThings.CheckObjectInventory(imageObjects.arrayKampIcon, coordinate.RectItemSlotSizeSample(), InventoryPage.Page_2).Length <= 0)
+                    charThings.CheckObjectInventory(imageObjects.arrayKampIcon, coordinate.RectItemSlotSizeSample(), InventoryPage.Page_2).Length <= 0 &&
+                    charThings.CheckObjectInventory(imageObjects.arrayKampIcon, coordinate.RectItemSlotSizeSample(), InventoryPage.Page_3).Length <= 0 &&
+                    charThings.CheckObjectInventory(imageObjects.arrayKampIcon, coordinate.RectItemSlotSizeSample(), InventoryPage.Page_4).Length <= 0)
                 {
                     if (timerBuyKamp.CheckDelayTimeInSecond(6))
                     {
@@ -813,6 +824,8 @@ namespace MusicPlayerApp.Sources.GameHandler
 
                     List<Rectangle[]> fishCoordinatesPageOne = new List<Rectangle[]>();
                     List<Rectangle[]> fishCoordinatesPageTwo = new List<Rectangle[]>();
+                    List<Rectangle[]> fishCoordinatesPageThree = new List<Rectangle[]>();
+                    List<Rectangle[]> fishCoordinatesPageFour = new List<Rectangle[]>();
 
                     foreach (FishIconForGrilling fishIcon in selectedFishIcons)
                     {
@@ -822,11 +835,15 @@ namespace MusicPlayerApp.Sources.GameHandler
                             fishIcon.SampleRect, InventoryPage.Page_1));
                         fishCoordinatesPageTwo.Add(charThings.CheckObjectInventory(fishIcon.Image,
                             fishIcon.SampleRect, InventoryPage.Page_2));
+                        fishCoordinatesPageThree.Add(charThings.CheckObjectInventory(fishIcon.Image,
+                            fishIcon.SampleRect, InventoryPage.Page_3));
+                        fishCoordinatesPageFour.Add(charThings.CheckObjectInventory(fishIcon.Image,
+                            fishIcon.SampleRect, InventoryPage.Page_4));
                     }
 
-                    // Eski kod yalnızca ilk üç türün birinci sayfasına bakıyordu; artık
-                    // iki sayfadaki tüm seçili türler sayılıyor.
-                    if (CountTotalFish(fishCoordinatesPageOne) + CountTotalFish(fishCoordinatesPageTwo) == 0)
+                    // Tüm seçili balık türleri ve envanter sayfaları taranır.
+                    if (CountTotalFish(fishCoordinatesPageOne) + CountTotalFish(fishCoordinatesPageTwo) +
+                        CountTotalFish(fishCoordinatesPageThree) + CountTotalFish(fishCoordinatesPageFour) == 0)
                     {
                         DebugPfCnsl.println("Envanterde kızartılacak balık yok");
                         return;
@@ -836,7 +853,8 @@ namespace MusicPlayerApp.Sources.GameHandler
                     if (rectKampGreenResult != Rectangle.Empty)
                     {
                         RetryGrillUntilDone(fishCoordinatesPageOne.ToArray(),
-                            fishCoordinatesPageTwo.ToArray(), rectKampGreenResult);
+                            fishCoordinatesPageTwo.ToArray(), rectKampGreenResult,
+                            fishCoordinatesPageThree.ToArray(), fishCoordinatesPageFour.ToArray());
                     }
                 }
                 else
@@ -896,14 +914,15 @@ namespace MusicPlayerApp.Sources.GameHandler
             return true;
         }
 
-        private bool RetryGrillUntilDone(Rectangle[][] pageOne, Rectangle[][] pageTwo, Rectangle kampAtesiGreen)
+        private bool RetryGrillUntilDone(Rectangle[][] pageOne, Rectangle[][] pageTwo,
+            Rectangle kampAtesiGreen, Rectangle[][] pageThree = null, Rectangle[][] pageFour = null)
         {
             for (int attempt = 0; attempt < MAX_GRILL_RETRY; attempt++)
             {
                 if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled || standaloneGrillTimedOut)
                     return false;
 
-                if (GrillFishes(pageOne, pageTwo, kampAtesiGreen))
+                if (GrillFishes(pageOne, pageTwo, kampAtesiGreen, pageThree, pageFour))
                 {
                     return true;
                 }
@@ -953,209 +972,148 @@ namespace MusicPlayerApp.Sources.GameHandler
             return total;
         }
 
-        private bool GrillFishes(Rectangle[][] rectPageOne , Rectangle[][] rectPageTwo,Rectangle kampAtesiGreen)
+        private bool GrillFishes(Rectangle[][] rectPageOne, Rectangle[][] rectPageTwo,
+            Rectangle kampAtesiGreen, Rectangle[][] rectPageThree = null, Rectangle[][] rectPageFour = null)
         {
             DebugPfCnsl.println("GrillFishes func is called");
             TimerGame timerGrillFishes = new TimerGame();
 
             if (!ThreadGlobals.isHepsiSelected)
             {
-                if (rectPageOne.Length > 0)
+                Rectangle[][][] fishRectanglesByPage =
                 {
-                    charThings.ClickWantedInventoryPage(InventoryPage.Page_1);
-                    for (int pageOneLength = 0; pageOneLength < rectPageOne.Length; pageOneLength++)
+                    rectPageOne,
+                    rectPageTwo,
+                    rectPageThree,
+                    rectPageFour
+                };
+
+                for (int pageIndex = 0; pageIndex < fishRectanglesByPage.Length; pageIndex++)
+                {
+                    Rectangle[][] pageFish = fishRectanglesByPage[pageIndex];
+                    if (pageFish == null || pageFish.Length == 0) continue;
+
+                    charThings.ClickWantedInventoryPage((InventoryPage)pageIndex);
+                    foreach (Rectangle[] fishTypeRectangles in pageFish)
                     {
-                        for (int pageOneValue = 0; pageOneValue < rectPageOne[pageOneLength].Length; pageOneValue++)
+                        if (fishTypeRectangles == null) continue;
+                        foreach (Rectangle rectFish in fishTypeRectangles)
                         {
-
-                            Rectangle rectFish = rectPageOne[pageOneLength][pageOneValue];
-
                             int[] fishImageBeforeGrill = screenShot.ImageArraySpecifiedArea(rectFish);
-                            int[] slotImageAfterGrill = screenShot.ImageArraySpecifiedArea(rectFish);
+                            int[] slotImageAfterGrill = fishImageBeforeGrill;
 
-                            while (imageObjects.CompareTwoArrayAdvanced(fishImageBeforeGrill, slotImageAfterGrill
-                                , ImageSensibilityLevel.SENSIBILTY_HIGH))
+                            while (imageObjects.CompareTwoArrayAdvanced(fishImageBeforeGrill,
+                                slotImageAfterGrill, ImageSensibilityLevel.SENSIBILTY_HIGH))
                             {
-                                if (timerGrillFishes.CheckDelayTimeInSecond(60))
-                                {
-                                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
-
-
-
-                                    inputGame.MouseMoveAndPressLeft(rectFish.X + rectFish.Width / 2, rectFish.Y);
-                                    inputGame.MouseMoveAndPressLeft(kampAtesiGreen.X + kampAtesiGreen.Width / 2,
-                                        kampAtesiGreen.Y + kampAtesiGreen.Height / 2);
-
-                                    TimerGame.SleepRandom(300, 400);
-
-                                    if (DismissAtmkConfirmation()) return false;
-
-                                    if (imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayYereAtmaDialog,
-                                        screenShot.ImageArraySpecifiedArea(coordinate.RectYereAtmaAlgilama()),
-                                        ImageSensibilityLevel.SENSIBILTY_HIGH))
-                                    {
-                                        inputGame.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
-                                        return false;
-                                    }
-
-                                    slotImageAfterGrill = screenShot.ImageArraySpecifiedArea(rectFish);
-                                }
-                                else
+                                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
+                                if (!timerGrillFishes.CheckDelayTimeInSecond(60))
                                 {
                                     DebugPfCnsl.println("GrillFishes func CheckDelayTimeSecond else statement started");
                                     return false;
                                 }
 
-                            }
+                                inputGame.MouseMoveAndPressLeft(rectFish.X + rectFish.Width / 2, rectFish.Y);
+                                inputGame.MouseMoveAndPressLeft(kampAtesiGreen.X + kampAtesiGreen.Width / 2,
+                                    kampAtesiGreen.Y + kampAtesiGreen.Height / 2);
+                                TimerGame.SleepRandom(200, 400);
 
-                        }
-                    }
-                }
-                if (rectPageTwo.Length > 0)
-                {
-                    charThings.ClickWantedInventoryPage(InventoryPage.Page_2);
-
-                    for (int pageTwoLength = 0; pageTwoLength < rectPageTwo.Length; pageTwoLength++)
-                    {
-                        for (int pageTwoValue = 0; pageTwoValue < rectPageTwo[pageTwoLength].Length; pageTwoValue++)
-                        {
-                            if (timerGrillFishes.CheckDelayTimeInSecond(60))
-                            {
-                                Rectangle rectFish = rectPageTwo[pageTwoLength][pageTwoValue];
-
-                                int[] fishImageBeforeGrill = screenShot.ImageArraySpecifiedArea(rectFish);
-                                int[] slotImageAfterGrill = screenShot.ImageArraySpecifiedArea(rectFish);
-
-                                while (imageObjects.CompareTwoArrayAdvanced(fishImageBeforeGrill, slotImageAfterGrill
-                                    , ImageSensibilityLevel.SENSIBILTY_HIGH))
+                                if (DismissAtmkConfirmation()) return false;
+                                if (imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayYereAtmaDialog,
+                                    screenShot.ImageArraySpecifiedArea(coordinate.RectYereAtmaAlgilama()),
+                                    ImageSensibilityLevel.SENSIBILTY_HIGH))
                                 {
-
-                                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
-
-
-
-                                    inputGame.MouseMoveAndPressLeft(rectFish.X + rectFish.Width / 2, rectFish.Y);
-                                    inputGame.MouseMoveAndPressLeft(kampAtesiGreen.X + kampAtesiGreen.Width / 2,
-                                        kampAtesiGreen.Y + kampAtesiGreen.Height / 2);
-
-                                    TimerGame.SleepRandom(200, 400);
-
-                                    if (DismissAtmkConfirmation()) return false;
-
-                                    if (imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayYereAtmaDialog,
-                                        screenShot.ImageArraySpecifiedArea(coordinate.RectYereAtmaAlgilama()),
-                                        ImageSensibilityLevel.SENSIBILTY_HIGH))
-                                    {
-                                        inputGame.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
-                                        return false;
-                                    }
-
-                                    slotImageAfterGrill = screenShot.ImageArraySpecifiedArea(rectFish);
+                                    inputGame.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
+                                    return false;
                                 }
-                            }
-                            else
-                            {
-                                DebugPfCnsl.println("GrillFishes func CheckDelayTimeSecond else statement started");
-                                return false;
+
+                                slotImageAfterGrill = screenShot.ImageArraySpecifiedArea(rectFish);
                             }
                         }
-
                     }
                 }
             }
             else
             {
-
-                for (; pageGrillFisher <= 2; pageGrillFisher++)
+                for (; pageGrillFisher <= 4; pageGrillFisher++)
                 {
-                    if(isGrillFishesFailed)
+                    if (isGrillFishesFailed)
                     {
                         pageGrillFisher = 1;
                         xGrillFishes = 0;
                         yGrillFishes = 0;
                     }
-                    if (pageGrillFisher == 1)
-                    {
-                        charThings.ClickWantedInventoryPage(InventoryPage.Page_1);
-                    }
-                    else
-                    {
-                        charThings.ClickWantedInventoryPage(InventoryPage.Page_2);
-                    }
 
+                    charThings.ClickWantedInventoryPage((InventoryPage)(pageGrillFisher - 1));
                     for (; yGrillFishes < 9; yGrillFishes++)
                     {
                         for (; xGrillFishes < 5; xGrillFishes++)
                         {
                             if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
-
-                            if (timerGrillFishes.CheckDelayTimeInSecond(60))
-                            {
-                                Rectangle rectScanSlot = new Rectangle(coordinate.RectFirstSlotPlace().X + (GameObjectCoordinates.DISTANCE_BTWN_INV_SLOTS * xGrillFishes),
-                               coordinate.RectFirstSlotPlace().Y + (GameObjectCoordinates.DISTANCE_BTWN_INV_SLOTS * yGrillFishes),
-                               coordinate.RectFirstSlotPlace().Width, coordinate.RectFirstSlotPlace().Height);
-
-                                int[] targetSlotImage = screenShot.ImageArraySpecifiedArea(rectScanSlot);
-
-                                if (!imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayEmptySlotPlace, targetSlotImage,
-                                    ImageSensibilityLevel.SENSIBILTY_HIGH))
-                                {
-                                    inputGame.MouseMoveAndPressLeft(rectScanSlot.X + rectScanSlot.Width / 2,
-                                            rectScanSlot.Y);
-                                    inputGame.MouseMoveAndPressLeft(kampAtesiGreen.X + kampAtesiGreen.Width / 2,
-                                            kampAtesiGreen.Y + kampAtesiGreen.Height / 2);
-
-                                    TimerGame.SleepRandom(200, 400);
-
-                                    if (DismissAtmkConfirmation()) return false;
-
-                                    if (imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayYereAtmaDialog,
-                                        screenShot.ImageArraySpecifiedArea(coordinate.RectYereAtmaAlgilama()),
-                                        ImageSensibilityLevel.SENSIBILTY_HIGH))
-                                    {
-                                        inputGame.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
-                                        return false;
-                                    }
-                                }
-                            }
-                            else
+                            if (!timerGrillFishes.CheckDelayTimeInSecond(60))
                             {
                                 isGrillFishesFailed = true;
                                 return false;
                             }
 
-                           
+                            Rectangle rectScanSlot = new Rectangle(
+                                coordinate.RectFirstSlotPlace().X + (GameObjectCoordinates.DISTANCE_BTWN_INV_SLOTS * xGrillFishes),
+                                coordinate.RectFirstSlotPlace().Y + (GameObjectCoordinates.DISTANCE_BTWN_INV_SLOTS * yGrillFishes),
+                                coordinate.RectFirstSlotPlace().Width, coordinate.RectFirstSlotPlace().Height);
+                            int[] targetSlotImage = screenShot.ImageArraySpecifiedArea(rectScanSlot);
+
+                            if (!imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayEmptySlotPlace,
+                                targetSlotImage, ImageSensibilityLevel.SENSIBILTY_HIGH))
+                            {
+                                inputGame.MouseMoveAndPressLeft(rectScanSlot.X + rectScanSlot.Width / 2,
+                                    rectScanSlot.Y);
+                                inputGame.MouseMoveAndPressLeft(kampAtesiGreen.X + kampAtesiGreen.Width / 2,
+                                    kampAtesiGreen.Y + kampAtesiGreen.Height / 2);
+                                TimerGame.SleepRandom(200, 400);
+
+                                if (DismissAtmkConfirmation()) return false;
+                                if (imageObjects.CompareTwoArrayAdvanced(imageObjects.arrayYereAtmaDialog,
+                                    screenShot.ImageArraySpecifiedArea(coordinate.RectYereAtmaAlgilama()),
+                                    ImageSensibilityLevel.SENSIBILTY_HIGH))
+                                {
+                                    inputGame.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
+                                    return false;
+                                }
+                            }
                         }
                         xGrillFishes = 0;
                     }
                     yGrillFishes = 0;
-                    
                 }
             }
 
             isGrillFishesFailed = false;
             pageGrillFisher = 1;
             xGrillFishes = 0;
-            yGrillFishes =0;    
-
-                return true;
-                        
+            yGrillFishes = 0;
+            return true;
         }
-        
+
         private Rectangle FireKampAtesi()
         {
             CloseFisherShopPage();
             TimerGame timerFireKamp = new TimerGame();
 
-            Rectangle[] kampAtesiIconInvent = charThings.CheckObjectInventory(imageObjects.arrayKampIcon,
-                coordinate.RectItemSlotSizeSample(),InventoryPage.Page_1);
-            if(kampAtesiIconInvent.Length <= 0)
+            Rectangle[] kampAtesiIconInvent = null;
+            InventoryPage[] inventoryPages =
+            {
+                InventoryPage.Page_1,
+                InventoryPage.Page_2,
+                InventoryPage.Page_3,
+                InventoryPage.Page_4
+            };
+            foreach (InventoryPage page in inventoryPages)
             {
                 kampAtesiIconInvent = charThings.CheckObjectInventory(imageObjects.arrayKampIcon,
-                coordinate.RectItemSlotSizeSample(), InventoryPage.Page_2);
+                    coordinate.RectItemSlotSizeSample(), page);
+                if (kampAtesiIconInvent.Length > 0) break;
             }
 
-            if(kampAtesiIconInvent != null && kampAtesiIconInvent.Length > 0)
+            if (kampAtesiIconInvent != null && kampAtesiIconInvent.Length > 0)
             {
 
                 bool[] sourceKampAtesiGreen = imageObjects.RecordWantedColorAsBool(ColorGame.MAP_CAMP_FIRE_GREEN,
