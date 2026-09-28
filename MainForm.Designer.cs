@@ -67,6 +67,7 @@ namespace MusicPlayerApp
             this.buttonPrepareWorms = new System.Windows.Forms.Button();
             this.buttonResetSettings = new System.Windows.Forms.Button();
             this.checkBoxCloseAfterTime = new System.Windows.Forms.CheckBox();
+            this.checkBoxCloseOnInventoryFull = new System.Windows.Forms.CheckBox();
             this.tabPage2 = new System.Windows.Forms.TabPage();
             this.checkBoxETPPickUp = new System.Windows.Forms.CheckBox();
             this.label29 = new System.Windows.Forms.Label();
@@ -176,6 +177,7 @@ namespace MusicPlayerApp
             this.tabPageFishing.Controls.Add(this.buttonPrepareWorms);
             this.tabPageFishing.Controls.Add(this.buttonResetSettings);
             this.tabPageFishing.Controls.Add(this.checkBoxCloseAfterTime);
+            this.tabPageFishing.Controls.Add(this.checkBoxCloseOnInventoryFull);
             this.tabPageFishing.Location = new System.Drawing.Point(4, 22);
             this.tabPageFishing.Name = "tabPageFishing";
             this.tabPageFishing.Padding = new System.Windows.Forms.Padding(3);
@@ -487,6 +489,17 @@ namespace MusicPlayerApp
             this.checkBoxCloseAfterTime.Text = "BOTU KAPAT";
             this.checkBoxCloseAfterTime.UseVisualStyleBackColor = true;
             this.checkBoxCloseAfterTime.CheckedChanged += new System.EventHandler(this.checkBoxCloseAfterTime_CheckedChanged);
+            //
+            // checkBoxCloseOnInventoryFull
+            //
+            this.checkBoxCloseOnInventoryFull.AutoSize = true;
+            this.checkBoxCloseOnInventoryFull.Location = new System.Drawing.Point(330, 206);
+            this.checkBoxCloseOnInventoryFull.Name = "checkBoxCloseOnInventoryFull";
+            this.checkBoxCloseOnInventoryFull.Size = new System.Drawing.Size(110, 17);
+            this.checkBoxCloseOnInventoryFull.TabIndex = 62;
+            this.checkBoxCloseOnInventoryFull.Text = "Env Dolu Kapat";
+            this.checkBoxCloseOnInventoryFull.UseVisualStyleBackColor = true;
+            this.checkBoxCloseOnInventoryFull.CheckedChanged += new System.EventHandler(this.checkBoxCloseOnInventoryFull_CheckedChanged);
             //
             // tabPage2
             // 
@@ -1203,6 +1216,7 @@ namespace MusicPlayerApp
         private System.Windows.Forms.Button buttonPrepareWorms;
         private System.Windows.Forms.Button buttonResetSettings;
         private System.Windows.Forms.CheckBox checkBoxCloseAfterTime;
+        private System.Windows.Forms.CheckBox checkBoxCloseOnInventoryFull;
         private System.Windows.Forms.Button buttonLevelStart;
         private System.Windows.Forms.TrackBar trackBarHp;
         private System.Windows.Forms.Label labelDex;

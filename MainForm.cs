@@ -50,6 +50,7 @@ namespace MusicPlayerApp
         private volatile bool isManualWormActionActive;
         private volatile bool isAutomaticInventoryGrillRecoveryActive;
         private volatile bool isAutomaticInventoryGrillRecoveryCancelled;
+        private volatile bool closeApplicationOnInventoryFull;
         private int inventoryFullGrillRecoveryRequested;
         //ChatHandlerForm chatHandlerForm;
 
@@ -141,6 +142,16 @@ namespace MusicPlayerApp
 
         private void HandleInventoryFullWarningDetected()
         {
+            if (closeApplicationOnInventoryFull)
+            {
+                FileLogger.Warning("env.png ile envanter dolu algılandı; 'Env Dolu Kapat' etkin, kurtarma işlemi yapılmadan uygulama kapatılıyor");
+                ThreadGlobals.isFishingStopped = true;
+                ThreadGlobals.isLevelFarmStopped = true;
+                ThreadGlobals.isEnergyCristalStopped = true;
+                Environment.Exit(0);
+                return;
+            }
+
             if (Interlocked.CompareExchange(ref inventoryFullGrillRecoveryRequested, 1, 0) != 0) return;
 
             // FishingHandle çağrısından hemen dönülebilmesi için durdurma isteğini burada koy;
@@ -676,6 +687,11 @@ namespace MusicPlayerApp
             CloseApplicationAfterTotalTime = checkBoxCloseAfterTime.Checked;
         }
 
+        private void checkBoxCloseOnInventoryFull_CheckedChanged(object sender, EventArgs e)
+        {
+            closeApplicationOnInventoryFull = checkBoxCloseOnInventoryFull.Checked;
+        }
+
         private void buttonResetSettings_Click(object sender, EventArgs e)
         {
             // Sıfırlama bot çalışırken de istenebilir; önce tüm modları durdur.
@@ -722,6 +738,7 @@ namespace MusicPlayerApp
             // Zamanlayıcı varsayılanı kapalıdır; değer kutuları tasarımda boştur.
             checkBoxEnableTime.Checked = false;
             checkBoxCloseAfterTime.Checked = false;
+            checkBoxCloseOnInventoryFull.Checked = false;
             textBoxMinWorkTime.Text = string.Empty;
             textBoxMaxWorkTime.Text = string.Empty;
             textBoxMinMaxBreak.Text = string.Empty;
@@ -1536,6 +1553,7 @@ namespace MusicPlayerApp
             toolTip.SetToolTip(checkBoxAdaptableFish, "Eğer haritada veya yakınınızda oyuncu var ise yavaş balık tutar");
             toolTip.SetToolTip(checkBoxPCSlow, "Eğer Bilgisayarın çok yavaş ise balık tutmak yada enerji parçası için bu seçeneği tıkla");
             toolTip.SetToolTip(checkBoxCloseAfterTime, "Toplam süre dolduğunda uygulamayı tamamen kapatır.");
+            toolTip.SetToolTip(checkBoxCloseOnInventoryFull, "env.png envanter dolu uyarısı algılanırsa uygulamayı anında kapatır; pişirme veya başka kurtarma işlemi yapmaz.");
             toolTip.SetToolTip(buttonPrepareWorms, "Solucanları 200'lük yapar; 32 yığından azsa balıkçıdan tamamlar ve hızlı erişime ekler. Balık tutmayı başlatmaz.");
         }
 
