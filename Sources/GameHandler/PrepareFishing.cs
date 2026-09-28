@@ -132,6 +132,12 @@ namespace MusicPlayerApp.Sources.GameHandler
 
             try
             {
+                if (!HoverAcrossAllInventorySlots())
+                {
+                    result = "Envanter yuvaları taranırken işlem durduruldu.";
+                    return false;
+                }
+
                 List<FishIconForGrilling> allFishIcons = GetAllFishTypesForGrilling();
                 int restartCount = 0;
 
@@ -697,18 +703,88 @@ namespace MusicPlayerApp.Sources.GameHandler
            
            
         }
+        /// <summary>
+        /// Moves the pointer over each slot in all four inventory pages without clicking.
+        /// Page tabs are clicked only to change pages; inventory item slots are never clicked.
+        /// </summary>
+        private bool HoverAcrossAllInventorySlots()
+        {
+            if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
+
+            charThings.OpenCloseInventory(true);
+            InventoryPage[] pages =
+            {
+                InventoryPage.Page_1,
+                InventoryPage.Page_2,
+                InventoryPage.Page_3,
+                InventoryPage.Page_4
+            };
+            Rectangle firstSlot = coordinate.RectFirstSlotPlace();
+
+            foreach (InventoryPage page in pages)
+            {
+                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                {
+                    charThings.OpenCloseInventory(false);
+                    return false;
+                }
+
+                charThings.ClickWantedInventoryPage(page);
+                for (int row = 0; row < 9; row++)
+                {
+                    for (int column = 0; column < 5; column++)
+                    {
+                        if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                        {
+                            charThings.OpenCloseInventory(false);
+                            return false;
+                        }
+
+                        int x = firstSlot.X + (GameObjectCoordinates.DISTANCE_BTWN_INV_SLOTS * column)
+                            + firstSlot.Width / 2;
+                        int y = firstSlot.Y + (GameObjectCoordinates.DISTANCE_BTWN_INV_SLOTS * row)
+                            + firstSlot.Height / 2;
+                        inputGame.MouseMove(x, y);
+                    }
+                }
+            }
+
+            charThings.OpenCloseInventory(false);
+            return true;
+        }
+
+        private void FinishWormPurchaseHover(bool purchasedWorms)
+        {
+            if (!purchasedWorms) return;
+            CloseFisherShopPage();
+            HoverAcrossAllInventorySlots();
+        }
+
+        private void FinishCampfirePurchaseHover(bool purchasedCampfire)
+        {
+            if (!purchasedCampfire) return;
+            CloseFisherShopPage();
+            HoverAcrossAllInventorySlots();
+        }
+
         private void BuyFiftyWormAsNeeded(int wormsCharHave)
         {
             if(CheckFisherShopPage())
             {
                 int neededWorms = NEEDED_WORM200_COUNT - wormsCharHave;
+                bool purchasedWorms = false;
 
                 for (int i = 0; i < neededWorms * 4; i++)
                 {
                     ThreadGlobals.WaitWhileBotPaused();
-                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return;
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                    {
+                        FinishWormPurchaseHover(purchasedWorms);
+                        return;
+                    }
                     inputGame.MouseMoveAndPressRight(coordinate.PointFisherShopFiftyWorm().X,
                        coordinate.PointFisherShopFiftyWorm().Y);
+                    purchasedWorms = true;
 
                     TimerGame.SleepRandom(500, 600);
 
@@ -718,9 +794,12 @@ namespace MusicPlayerApp.Sources.GameHandler
                     {
                         DebugPfCnsl.println("There aren't any place to buy worm");
                         inputGame.KeyPress(KeyboardInput.ScanCodeShort.ESCAPE);
+                        FinishWormPurchaseHover(purchasedWorms);
                         return;
                     }
                 }
+
+                FinishWormPurchaseHover(purchasedWorms);
             }
             else
             {
@@ -734,6 +813,7 @@ namespace MusicPlayerApp.Sources.GameHandler
         {
             DebugPfCnsl.println("BuyKampAtasiFromFisher is called");
             TimerGame timerBuyKamp = new TimerGame();
+            bool purchasedCampfire = false;
             if (CheckFisherShopPage())
             {
                 
@@ -746,19 +826,24 @@ namespace MusicPlayerApp.Sources.GameHandler
                 {
                     if (timerBuyKamp.CheckDelayTimeInSecond(6))
                     {
-                        if (ThreadGlobals.isFishingStopped && ThreadGlobals.isCharKilled) return;
+                        if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                        {
+                            FinishCampfirePurchaseHover(purchasedCampfire);
+                            return;
+                        }
 
                         inputGame.MouseMoveAndPressRight(coordinate.PointFisherShopKampAtesi().X,
                             coordinate.PointFisherShopKampAtesi().Y);
+                        purchasedCampfire = true;
                         TimerGame.SleepRandom(500, 800);
                     }
                     else
                     {
                         DebugPfCnsl.println("kamp atesi alinamadi");
+                        FinishCampfirePurchaseHover(purchasedCampfire);
                         return;
                     }
                 }
-               
 
                /* while (imageObjects.FindAllImagesOnScreen(imageObjects.arrayKampIcon,
                     coordinate.RectItemSlotSizeSample(), coordinate.RectInventoryPageArea()).Length < 1)
@@ -792,7 +877,8 @@ namespace MusicPlayerApp.Sources.GameHandler
                     return;
                 }
             }
-           
+
+            FinishCampfirePurchaseHover(purchasedCampfire);
         }
         /// <summary>
         /// Balıkçı dükkanı açıkken kamp ateşi alıp envanterdeki balıkları kızartır.
@@ -811,6 +897,7 @@ namespace MusicPlayerApp.Sources.GameHandler
 
             if (CheckFisherShopPage())
             {
+                if (!HoverAcrossAllInventorySlots()) return;
                 BuyKampAtasiFromFisher();
 
                 if (!ThreadGlobals.isHepsiSelected)
