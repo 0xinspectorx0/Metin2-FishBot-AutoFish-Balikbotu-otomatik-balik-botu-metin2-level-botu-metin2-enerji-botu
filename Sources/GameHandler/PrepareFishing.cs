@@ -101,29 +101,11 @@ namespace MusicPlayerApp.Sources.GameHandler
         /// </summary>
         public bool GrillAllFishOnly(out string result)
         {
-            return GrillAllFishOnlyCore(out result, false);
-        }
-
-        /// <summary>
-        /// Balık tutma iş parçacığı içinden yalnızca pişirme işlemini çalıştırır.
-        /// Solucan hazırlama çağrılmaz; pişirme bitince mevcut balık döngüsü sürer.
-        /// </summary>
-        public bool GrillFishForInventorySpace(out string result)
-        {
-            return GrillAllFishOnlyCore(out result, true);
-        }
-
-        private bool GrillAllFishOnlyCore(out string result, bool keepFishingActive)
-        {
             result = "Balık pişirme işlemi tamamlanamadı.";
 
-            bool invalidThreadState = keepFishingActive
-                ? ThreadGlobals.isFishingStopped || !ThreadGlobals.IsThreadOneActive ||
-                    ThreadGlobals.IsThreadTwoActive || ThreadGlobals.IsThreadThreeActive ||
-                    ThreadGlobals.isActiveFishBoard
-                : ThreadGlobals.isFishingStopped || ThreadGlobals.IsAnyThreadActive();
-            if (invalidThreadState || ThreadGlobals.isBotPaused ||
-                !ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isEnergyCristalStopped)
+            if (ThreadGlobals.isFishingStopped || ThreadGlobals.isBotPaused ||
+                !ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isEnergyCristalStopped ||
+                ThreadGlobals.IsAnyThreadActive())
             {
                 result = "Önce çalışan bot işlemlerini durdurun.";
                 return false;
@@ -143,11 +125,7 @@ namespace MusicPlayerApp.Sources.GameHandler
             standaloneGrillTimedOut = false;
             standaloneAtmkRestartRequested = false;
             standaloneGrillStopwatch = Stopwatch.StartNew();
-            bool shouldReturnToFishingSpot = false;
-            if (!keepFishingActive)
-            {
-                ThreadGlobals.isFishingStopped = false;
-            }
+            ThreadGlobals.isFishingStopped = false;
             ThreadGlobals.isSettingButtonSeemed = true;
             ThreadGlobals.isHepsiSelected = false;
             ThreadGlobals.isPrepareFishingStarted = true;
@@ -201,7 +179,6 @@ namespace MusicPlayerApp.Sources.GameHandler
                             : "Envanterde tanınan balık bulunamadı.";
                         return restartCount > 0;
                     }
-                    shouldReturnToFishingSpot = keepFishingActive;
 
                     // Balıkçı dükkânı zaten açıksa tekrar aramaya çıkma.
                     if (!CheckFisherShopPage())
@@ -287,20 +264,8 @@ namespace MusicPlayerApp.Sources.GameHandler
             }
             finally
             {
-                if (keepFishingActive && shouldReturnToFishingSpot && !ThreadGlobals.isFishingStopped)
-                {
-                    ThreadGlobals.WaitWhileBotPaused();
-                    if (!ThreadGlobals.isFishingStopped)
-                    {
-                        GoToFishPlace();
-                    }
-                }
-
                 bool wasStoppedByUser = ThreadGlobals.isFishingStopped;
-                if (!keepFishingActive)
-                {
-                    ThreadGlobals.isFishingStopped = true;
-                }
+                ThreadGlobals.isFishingStopped = true;
                 if (!wasStoppedByUser)
                 {
                     ThreadGlobals.isSettingButtonSeemed = previousSettingButtonState;

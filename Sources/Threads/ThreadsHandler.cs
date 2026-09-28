@@ -78,6 +78,11 @@ namespace MusicPlayerApp.Sources
         private StatusHandler statusHandler;
         private CharMovement charMovement;
         private EnerjyCristalHandle enerjyCrisHandle;
+        private Thread threadOne;
+        private Thread threadTwo;
+        private Thread threadThree;
+
+        public event Action InventoryFullWarningDetected;
 
         private TimerGame timeGeneral;
         private TimerGame timerLevelFarmBot;
@@ -96,6 +101,7 @@ namespace MusicPlayerApp.Sources
 
             gameWords = new GameAlphabetDetecter(this.imageObject);
             fishing = new FishingHandle(this.imageObject);
+            fishing.InventoryFullWarningDetected += ForwardInventoryFullWarning;
             gameStatus = new CheckGameStatus(this.imageObject, gameWords);
             coordinates = new GameObjectCoordinates(this.imageObject);
             screenShot = new ScreenShotWinAPI();
@@ -113,6 +119,12 @@ namespace MusicPlayerApp.Sources
             timeEnergyBot = new TimerGame();
             charMovement = new CharMovement(this.imageObject, gameWords);
             enerjyCrisHandle = new EnerjyCristalHandle(this.imageObject, gameWords);
+        }
+
+        private void ForwardInventoryFullWarning()
+        {
+            Action handler = InventoryFullWarningDetected;
+            if (handler != null) handler();
         }
 
         /// <summary>
@@ -141,18 +153,21 @@ namespace MusicPlayerApp.Sources
 
             //@@@@@@@@    THREAD 1 — ana bot döngüsü    @@@@@@@@@@@@
             Thread t1 = new Thread(() => RunThreadSafely(T1Name, ThreadOneBody));
+            threadOne = t1;
             t1.Name = T1Name;
             t1.IsBackground = true;
             t1.Start();
 
             //@@@@@@@@    THREAD 2 — oyun durumu nöbetçisi    @@@@@@@@@@@@
             Thread t2 = new Thread(() => RunThreadSafely(T2Name, ThreadTwoBody));
+            threadTwo = t2;
             t2.Name = T2Name;
             t2.IsBackground = true;
             t2.Start();
 
             //@@@@@@@@    THREAD 3 — yan görevler    @@@@@@@@@@@@
             Thread t3 = new Thread(() => RunThreadSafely(T3Name, ThreadThreeBody));
+            threadThree = t3;
             t3.Name = T3Name;
             t3.IsBackground = true;
             t3.Start();
@@ -572,6 +587,49 @@ namespace MusicPlayerApp.Sources
             waiter.Name = "Stop Waiter";
             waiter.IsBackground = true;
             waiter.Start();
+        }
+
+        /// <summary>
+        /// Botu durdurur ve gerçek iş parçacıklarının bitmesini bekler.
+        /// Otomatik pişirme akışında, oyun girdisi kullanan hiçbir bot thread'i kalmadığını doğrulamak için kullanılır.
+        /// </summary>
+        public bool StopAndWait(int timeoutMilliseconds)
+        {
+            FileLogger.Info("ThreadsHandler.StopAndWait çağrıldı");
+            isBotRunActive = false;
+            StopTotalCountdownWatcher();
+            TimerGame.ResetCountdownDisplay();
+            ThreadGlobals.isFishingStopped = true;
+            ThreadGlobals.isLevelFarmStopped = true;
+            ThreadGlobals.isEnergyCristalStopped = true;
+            ThreadGlobals.SetDefaultGloabalValues();
+
+            HandleFormElement(MainForm.buttonFishingStartCopy, "BAŞLAT", false);
+            HandleFormElement(MainForm.buttonLevelFarmStartCopy, "BAŞLAT", false);
+            HandleFormElement(MainForm.buttonEnergyStartCopy, "BAŞLAT", false);
+
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(Math.Max(0, timeoutMilliseconds));
+            Thread[] threads = { threadOne, threadTwo, threadThree };
+            bool stopped = true;
+            foreach (Thread thread in threads)
+            {
+                if (thread == null || thread == Thread.CurrentThread) continue;
+                int remaining = (int)Math.Max(0, (deadline - DateTime.UtcNow).TotalMilliseconds);
+                if (thread.IsAlive && !thread.Join(remaining))
+                {
+                    stopped = false;
+                    break;
+                }
+            }
+
+            HandleFormElement(MainForm.buttonFishingStartCopy, "BAŞLAT", true);
+            HandleFormElement(MainForm.buttonLevelFarmStartCopy, "BAŞLAT", true);
+            HandleFormElement(MainForm.buttonEnergyStartCopy, "BAŞLAT", true);
+            if (!stopped)
+            {
+                FileLogger.Warning("Envanter uyarısı sonrası durdurma zaman aşımına uğradı; pişirme güvenlik nedeniyle başlatılmıyor");
+            }
+            return stopped;
         }
 
         /// <summary>

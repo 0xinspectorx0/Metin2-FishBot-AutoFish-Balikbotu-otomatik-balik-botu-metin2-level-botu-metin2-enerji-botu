@@ -50,6 +50,7 @@ namespace MusicPlayerApp.Sources.GameHandler
         private bool isAltinTonDetected = false;
         private bool isHandlePinkFuncWorked = false;
         private bool isInventoryFullRecoveryHandled;
+        public event Action InventoryFullWarningDetected;
 
         static int[] arrayStoredFishValue = new int[6];
         int[] arrayReferenceWormVal;
@@ -635,14 +636,16 @@ namespace MusicPlayerApp.Sources.GameHandler
                 isHandlePinkFuncWorked = true;
                 if (IsInventoryFullWarningVisible())
                 {
-                    DebugPfCnsl.println("Envanter dolu görseli algılandı; balık pişirme hazırlığı başlatılıyor");
+                    DebugPfCnsl.println("Envanter dolu görseli algılandı; Balıkları Pişir düğmesine geçiliyor");
                     isInventoryFullRecoveryHandled = true;
-                    // Synchronous cooking pauses this fishing thread; after it returns,
-                    // the existing fishing loop continues without preparing worms.
-                    string grillResult;
-                    if (!prepareFish.GrillFishForInventorySpace(out grillResult))
+                    Action handler = InventoryFullWarningDetected;
+                    if (handler != null)
                     {
-                        DebugPfCnsl.println("Envanter uyarısı sonrası pişirme tamamlanamadı: " + grillResult);
+                        handler();
+                    }
+                    else
+                    {
+                        ThreadGlobals.isFishingStopped = true;
                     }
                 }
                 else

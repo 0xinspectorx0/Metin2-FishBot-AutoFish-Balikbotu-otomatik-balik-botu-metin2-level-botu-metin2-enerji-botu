@@ -48,6 +48,9 @@ namespace MusicPlayerApp
         private bool isTelegramCheckChanging;
         private volatile bool isManualGrillActionActive;
         private volatile bool isManualWormActionActive;
+        private volatile bool isAutomaticInventoryGrillRecoveryActive;
+        private volatile bool isAutomaticInventoryGrillRecoveryCancelled;
+        private int inventoryFullGrillRecoveryRequested;
         //ChatHandlerForm chatHandlerForm;
 
 
@@ -116,6 +119,7 @@ namespace MusicPlayerApp
             // biri için dispose edilmeyen Bitmap yaratıyordu (GDI nesne sızıntısı).
             imageObjects = ImageObjects.Instance;
             threadsHandler = new ThreadsHandler(imageObjects);
+            threadsHandler.InventoryFullWarningDetected += HandleInventoryFullWarningDetected;
             coor = new GameObjectCoordinates(imageObjects);
             // Ctrl+O tamamen durdurur; Ctrl+P duraklatıp/devam ettirir.
             RegisterHotKey(this.Handle, MY_HOTKEY_ID, MOD_CONTROL | MOD_NOREPEAT, VK_O);
@@ -133,6 +137,79 @@ namespace MusicPlayerApp
             // Surum denetimi arka planda calisir; form acilisini bloklamaz.
             // (VersionChecker artik MusicPlayerApp.Sources ad alaninda.)
             MusicPlayerApp.Sources.VersionChecker.CheckForUpdate();
+        }
+
+        private void HandleInventoryFullWarningDetected()
+        {
+            if (Interlocked.CompareExchange(ref inventoryFullGrillRecoveryRequested, 1, 0) != 0) return;
+
+            // FishingHandle çağrısından hemen dönülebilmesi için durdurma isteğini burada koy;
+            // gerçek düğme tıklaması tüm bot thread'leri kapandıktan sonra yapılır.
+            ThreadGlobals.isFishingStopped = true;
+            FileLogger.Info("Envanter dolu uyarısı: bot durdurulup Balıkları Pişir düğmesine geçiliyor");
+
+            Task.Run(() =>
+            {
+                bool stopped = false;
+                try
+                {
+                    stopped = threadsHandler.StopAndWait(30000);
+                }
+                catch (Exception ex)
+                {
+                    FileLogger.Error("Envanter uyarısı sonrası bot durdurulamadı", ex);
+                }
+
+                if (!stopped)
+                {
+                    DispatchInventoryGrillStatus("Bot thread'leri güvenle durmadı; otomatik pişirme başlatılmadı.");
+                    Interlocked.Exchange(ref inventoryFullGrillRecoveryRequested, 0);
+                    return;
+                }
+
+                if (IsDisposed || !IsHandleCreated)
+                {
+                    Interlocked.Exchange(ref inventoryFullGrillRecoveryRequested, 0);
+                    return;
+                }
+
+                try
+                {
+                    BeginInvoke((Action)(() =>
+                    {
+                        tabControlTelegram.SelectedTab = tabPageFishing;
+                        isAutomaticInventoryGrillRecoveryActive = true;
+                        isAutomaticInventoryGrillRecoveryCancelled = false;
+                        buttonGrillFish.Enabled = true;
+                        buttonGrillFish.PerformClick();
+
+                        if (!isManualGrillActionActive)
+                        {
+                            isAutomaticInventoryGrillRecoveryActive = false;
+                            Interlocked.Exchange(ref inventoryFullGrillRecoveryRequested, 0);
+                            labelStartStatus.Text = "Balıkları Pişir düğmesi otomatik başlatılamadı; balık botu durduruldu.";
+                        }
+                    }));
+                }
+                catch (InvalidOperationException ex)
+                {
+                    FileLogger.Error("Balıkları Pişir bölümü açılamadı", ex);
+                    Interlocked.Exchange(ref inventoryFullGrillRecoveryRequested, 0);
+                }
+            });
+        }
+
+        private void DispatchInventoryGrillStatus(string message)
+        {
+            if (IsDisposed || !IsHandleCreated) return;
+            try
+            {
+                BeginInvoke((Action)(() => labelStartStatus.Text = message));
+            }
+            catch (InvalidOperationException ex)
+            {
+                FileLogger.Error("Envanter pişirme durumu arayüzde gösterilemedi", ex);
+            }
         }
 
         protected override void WndProc(ref Message m)
@@ -158,6 +235,10 @@ namespace MusicPlayerApp
         {
             if ((isManualGrillActionActive || isManualWormActionActive) && !ThreadGlobals.isBotPaused)
             {
+                if (isAutomaticInventoryGrillRecoveryActive)
+                {
+                    isAutomaticInventoryGrillRecoveryCancelled = true;
+                }
                 ThreadGlobals.isFishingStopped = true;
                 labelStartStatus.Text = isManualWormActionActive
                     ? "Solucan hazırlama Ctrl+O ile durduruldu"
@@ -168,6 +249,10 @@ namespace MusicPlayerApp
 
             if (ThreadGlobals.isBotPaused)
             {
+                if (isAutomaticInventoryGrillRecoveryActive)
+                {
+                    isAutomaticInventoryGrillRecoveryCancelled = true;
+                }
                 bool wasFishingActive = ThreadGlobals.WasFishingActiveBeforePause;
                 bool wasLevelFarmActive = ThreadGlobals.WasLevelFarmActiveBeforePause;
                 bool wasEnergyActive = ThreadGlobals.WasEnergyActiveBeforePause;
@@ -319,6 +404,9 @@ namespace MusicPlayerApp
             Task.Run(() =>
             {
                 string result = "Balık pişirme işlemi tamamlanamadı.";
+                bool grillCompleted = false;
+                bool resumeFishingAfterGrill = false;
+                bool automaticInventoryRecovery = isAutomaticInventoryGrillRecoveryActive;
                 try
                 {
                     // Başlangıç beklemesi duraklatmaya duyarlıdır; bu sırada Ctrl+O
@@ -331,7 +419,15 @@ namespace MusicPlayerApp
                     else
                     {
                         PrepareFishing prepareFishing = new PrepareFishing(imageObjects);
-                        prepareFishing.GrillAllFishOnly(out result);
+                        grillCompleted = prepareFishing.GrillAllFishOnly(out result);
+                        if (automaticInventoryRecovery && grillCompleted &&
+                            !isAutomaticInventoryGrillRecoveryCancelled)
+                        {
+                            ThreadGlobals.isFishingStopped = false;
+                            prepareFishing.GoToFishPlace();
+                            resumeFishingAfterGrill = !ThreadGlobals.isFishingStopped &&
+                                !isAutomaticInventoryGrillRecoveryCancelled;
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -360,6 +456,33 @@ namespace MusicPlayerApp
                             buttonGrillFish.Enabled = true;
                             buttonPrepareWorms.Enabled = true;
                             labelStartStatus.Text = result;
+                            if (automaticInventoryRecovery)
+                            {
+                                isAutomaticInventoryGrillRecoveryActive = false;
+                                if (resumeFishingAfterGrill && !isAutomaticInventoryGrillRecoveryCancelled)
+                                {
+                                    try
+                                    {
+                                        ThreadGlobals.isFishingStopped = false;
+                                        threadsHandler.Start();
+                                        buttonFishingStart.Text = "DURDUR";
+                                        labelStartStatus.Text = "Pişirme tamamlandı; balık tutma devam ediyor.";
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        ThreadGlobals.isFishingStopped = true;
+                                        FileLogger.Error("Pişirme sonrası balık botu yeniden başlatılamadı", ex);
+                                        labelStartStatus.Text = "Pişirme tamamlandı ancak balık botu başlatılamadı: " + ex.Message;
+                                    }
+                                }
+                                else
+                                {
+                                    ThreadGlobals.isFishingStopped = true;
+                                    labelStartStatus.Text = result + " Balık botu otomatik olarak yeniden başlatılmadı.";
+                                }
+                                isAutomaticInventoryGrillRecoveryCancelled = false;
+                                Interlocked.Exchange(ref inventoryFullGrillRecoveryRequested, 0);
+                            }
                         }));
                     }
                     else
