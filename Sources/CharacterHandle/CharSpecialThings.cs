@@ -173,7 +173,7 @@ namespace MusicPlayerApp.Sources.CharacterHandle
                 }
                 else
                 {
-                    if(!Thread.CurrentThread.Name.Equals(ThreadsHandler.T2Name)) 
+                    if (!string.Equals(Thread.CurrentThread.Name, ThreadsHandler.T2Name, StringComparison.Ordinal))
                     {
                         DebugPfCnsl.println("envanter yazısı tespit edilemedi bu yüzden karakter" +
                             "atılıyor...");
@@ -764,6 +764,11 @@ namespace MusicPlayerApp.Sources.CharacterHandle
                 {
                     for (; xCombineItems < 5; xCombineItems++)
                     {
+                        if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isCharKilled)
+                        {
+                            isCombineItem200failed = true;
+                            return -1;
+                        }
                         
                         if (timerGrillFishes.CheckDelayTimeInSecond(250))
                         {
@@ -811,6 +816,11 @@ namespace MusicPlayerApp.Sources.CharacterHandle
                                         while (imageObject.CompareTwoArrayAdvanced(arrayBeforeCombine,
                                             screenshot.ImageArraySpecifiedArea(rectCombineOne),ImageSensibilityLevel.SENSIBILTY_HIGH))
                                         {
+                                            if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isCharKilled)
+                                            {
+                                                isCombineItem200failed = true;
+                                                return -1;
+                                            }
                                             if(timerCombine.CheckDelayTimeInSecond(5))
                                             {
                                                 if(rectCombineOne.X == rectCombineTwo.X && 

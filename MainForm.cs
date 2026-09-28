@@ -47,6 +47,7 @@ namespace MusicPlayerApp
         /// yeniden tetiklenmesini engeller.</summary>
         private bool isTelegramCheckChanging;
         private volatile bool isManualGrillActionActive;
+        private volatile bool isManualWormActionActive;
         //ChatHandlerForm chatHandlerForm;
 
 
@@ -155,10 +156,12 @@ namespace MusicPlayerApp
 
         private void StopBotFromHotkey()
         {
-            if (isManualGrillActionActive && !ThreadGlobals.isBotPaused)
+            if ((isManualGrillActionActive || isManualWormActionActive) && !ThreadGlobals.isBotPaused)
             {
                 ThreadGlobals.isFishingStopped = true;
-                labelStartStatus.Text = "Ctrl+O ile durduruldu";
+                labelStartStatus.Text = isManualWormActionActive
+                    ? "Solucan hazırlama Ctrl+O ile durduruldu"
+                    : "Ctrl+O ile durduruldu";
                 threadsHandler.Stop();
                 return;
             }
@@ -171,7 +174,8 @@ namespace MusicPlayerApp
                 ThreadGlobals.isFishingStopped = true;
                 ThreadGlobals.isLevelFarmStopped = true;
                 ThreadGlobals.isEnergyCristalStopped = true;
-                if (wasFishingActive) labelStartStatus.Text = "Ctrl+O ile durduruldu";
+                if (isManualWormActionActive) labelStartStatus.Text = "Solucan hazırlama Ctrl+O ile durduruldu";
+                else if (isManualGrillActionActive || wasFishingActive) labelStartStatus.Text = "Ctrl+O ile durduruldu";
                 if (wasLevelFarmActive) labelLevelFarmStatus.Text = "Ctrl+O ile durduruldu";
                 if (wasEnergyActive) labelEnergyCristal.Text = "Ctrl+O ile durduruldu";
                 threadsHandler.Stop();
@@ -205,15 +209,20 @@ namespace MusicPlayerApp
                 if (!ThreadGlobals.ResumeBot()) return;
 
                 TimerGame.ResumeBotTimers();
-                bool canStartOtherActions = !isManualGrillActionActive;
+                bool canStartOtherActions = !isManualGrillActionActive && !isManualWormActionActive;
                 buttonFishingStart.Enabled = canStartOtherActions;
                 buttonLevelStart.Enabled = canStartOtherActions;
                 buttonEnergyStart.Enabled = canStartOtherActions;
                 buttonResetSettings.Enabled = canStartOtherActions;
                 buttonGrillFish.Enabled = canStartOtherActions;
+                buttonPrepareWorms.Enabled = canStartOtherActions;
                 if (isManualGrillActionActive)
                 {
                     labelStartStatus.Text = "Ctrl+P ile pişirmeye devam edildi";
+                }
+                else if (isManualWormActionActive)
+                {
+                    labelStartStatus.Text = "Solucan hazırlama Ctrl+P ile devam etti";
                 }
                 else if (resumeFishing)
                 {
@@ -242,7 +251,9 @@ namespace MusicPlayerApp
             buttonEnergyStart.Enabled = false;
             buttonResetSettings.Enabled = false;
             buttonGrillFish.Enabled = false;
+            buttonPrepareWorms.Enabled = false;
             if (isManualGrillActionActive) labelStartStatus.Text = "Pişirme Ctrl+P ile duraklatıldı";
+            else if (isManualWormActionActive) labelStartStatus.Text = "Solucan hazırlama Ctrl+P ile duraklatıldı";
             else if (ThreadGlobals.WasFishingActiveBeforePause) labelStartStatus.Text = "Ctrl+P ile duraklatıldı";
             if (ThreadGlobals.WasLevelFarmActiveBeforePause) labelLevelFarmStatus.Text = "Ctrl+P ile duraklatıldı";
             if (ThreadGlobals.WasEnergyActiveBeforePause) labelEnergyCristal.Text = "Ctrl+P ile duraklatıldı";
@@ -286,7 +297,7 @@ namespace MusicPlayerApp
 
         private void buttonGrillFish_Click(object sender, EventArgs e)
         {
-            if (isManualGrillActionActive || ThreadGlobals.isBotPaused ||
+            if (isManualGrillActionActive || isManualWormActionActive || ThreadGlobals.isBotPaused ||
                 !ThreadGlobals.isFishingStopped || !ThreadGlobals.isLevelFarmStopped ||
                 !ThreadGlobals.isEnergyCristalStopped || ThreadGlobals.IsAnyThreadActive())
             {
@@ -302,6 +313,7 @@ namespace MusicPlayerApp
             buttonEnergyStart.Enabled = false;
             buttonResetSettings.Enabled = false;
             buttonGrillFish.Enabled = false;
+            buttonPrepareWorms.Enabled = false;
             labelStartStatus.Text = "Pişirme 5 saniye içinde başlayacak… (Ctrl+O ile durdurabilirsiniz)";
 
             Task.Run(() =>
@@ -346,6 +358,7 @@ namespace MusicPlayerApp
                             buttonEnergyStart.Enabled = true;
                             buttonResetSettings.Enabled = true;
                             buttonGrillFish.Enabled = true;
+                            buttonPrepareWorms.Enabled = true;
                             labelStartStatus.Text = result;
                         }));
                     }
@@ -357,6 +370,83 @@ namespace MusicPlayerApp
                 catch (InvalidOperationException)
                 {
                     isManualGrillActionActive = false;
+                }
+            });
+        }
+
+        private void buttonPrepareWorms_Click(object sender, EventArgs e)
+        {
+            if (isManualGrillActionActive || isManualWormActionActive || ThreadGlobals.isBotPaused ||
+                !ThreadGlobals.isFishingStopped || !ThreadGlobals.isLevelFarmStopped ||
+                !ThreadGlobals.isEnergyCristalStopped || ThreadGlobals.IsAnyThreadActive())
+            {
+                MessageBox.Show("Solucan hazırlamak için önce tüm bot işlemlerini durdurun.",
+                    "İşlem başlatılamadı", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            isManualWormActionActive = true;
+            ThreadGlobals.isFishingStopped = false;
+            buttonFishingStart.Enabled = false;
+            buttonLevelStart.Enabled = false;
+            buttonEnergyStart.Enabled = false;
+            buttonResetSettings.Enabled = false;
+            buttonGrillFish.Enabled = false;
+            buttonPrepareWorms.Enabled = false;
+            labelStartStatus.Text = "Solucan hazırlama 5 saniye içinde başlayacak… (Ctrl+O ile durdurabilirsiniz)";
+
+            Task.Run(() =>
+            {
+                string result = "Solucan hazırlama işlemi tamamlanamadı.";
+                try
+                {
+                    TimerGame.SleepActiveTime(5000);
+                    if (ThreadGlobals.isFishingStopped)
+                    {
+                        result = "Solucan hazırlama işlemi durduruldu.";
+                    }
+                    else
+                    {
+                        PrepareFishing prepareFishing = new PrepareFishing(imageObjects);
+                        prepareFishing.PrepareWormsOnly(out result);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    FileLogger.Error("Bağımsız solucan hazırlama işlemi başlatılamadı", ex);
+                    result = "Solucan hazırlama hatası: " + ex.Message;
+                }
+                finally
+                {
+                    ThreadGlobals.isFishingStopped = true;
+                    ThreadGlobals.isPrepareFishingStarted = false;
+                }
+
+                try
+                {
+                    if (!IsDisposed && IsHandleCreated)
+                    {
+                        BeginInvoke((Action)(() =>
+                        {
+                            isManualWormActionActive = false;
+                            buttonFishingStart.Text = "BAŞLAT";
+                            buttonFishingStart.Enabled = !ThreadGlobals.isBotPaused;
+                            buttonLevelStart.Enabled = !ThreadGlobals.isBotPaused;
+                            buttonEnergyStart.Enabled = !ThreadGlobals.isBotPaused;
+                            buttonResetSettings.Enabled = !ThreadGlobals.isBotPaused;
+                            buttonGrillFish.Enabled = !ThreadGlobals.isBotPaused;
+                            buttonPrepareWorms.Enabled = !ThreadGlobals.isBotPaused;
+                            labelStartStatus.Text = result;
+                        }));
+                    }
+                    else
+                    {
+                        isManualWormActionActive = false;
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    isManualWormActionActive = false;
                 }
             });
         }
@@ -1323,6 +1413,7 @@ namespace MusicPlayerApp
             toolTip.SetToolTip(checkBoxAdaptableFish, "Eğer haritada veya yakınınızda oyuncu var ise yavaş balık tutar");
             toolTip.SetToolTip(checkBoxPCSlow, "Eğer Bilgisayarın çok yavaş ise balık tutmak yada enerji parçası için bu seçeneği tıkla");
             toolTip.SetToolTip(checkBoxCloseAfterTime, "Toplam süre dolduğunda uygulamayı tamamen kapatır.");
+            toolTip.SetToolTip(buttonPrepareWorms, "Solucanları 200'lük yapar; 32 yığından azsa balıkçıdan tamamlar ve hızlı erişime ekler. Balık tutmayı başlatmaz.");
         }
 
         private void checkBoxAdaptable_CheckedChanged(object sender, EventArgs e)

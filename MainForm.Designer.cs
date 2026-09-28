@@ -64,6 +64,7 @@ namespace MusicPlayerApp
             this.labelStartStatus = new System.Windows.Forms.Label();
             this.buttonFishingStart = new System.Windows.Forms.Button();
             this.buttonGrillFish = new System.Windows.Forms.Button();
+            this.buttonPrepareWorms = new System.Windows.Forms.Button();
             this.buttonResetSettings = new System.Windows.Forms.Button();
             this.checkBoxCloseAfterTime = new System.Windows.Forms.CheckBox();
             this.tabPage2 = new System.Windows.Forms.TabPage();
@@ -172,6 +173,7 @@ namespace MusicPlayerApp
             this.tabPageFishing.Controls.Add(this.labelStartStatus);
             this.tabPageFishing.Controls.Add(this.buttonFishingStart);
             this.tabPageFishing.Controls.Add(this.buttonGrillFish);
+            this.tabPageFishing.Controls.Add(this.buttonPrepareWorms);
             this.tabPageFishing.Controls.Add(this.buttonResetSettings);
             this.tabPageFishing.Controls.Add(this.checkBoxCloseAfterTime);
             this.tabPageFishing.Location = new System.Drawing.Point(4, 22);
@@ -418,12 +420,12 @@ namespace MusicPlayerApp
             // labelStartStatus
             // 
             this.labelStartStatus.AutoSize = false;
-            this.labelStartStatus.Font = new System.Drawing.Font("Microsoft Sans Serif", 13.8F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.labelStartStatus.Font = new System.Drawing.Font("Microsoft Sans Serif", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.labelStartStatus.ForeColor = System.Drawing.Color.Red;
             this.labelStartStatus.Location = new System.Drawing.Point(15, 280);
             this.labelStartStatus.Margin = new System.Windows.Forms.Padding(2, 0, 2, 0);
             this.labelStartStatus.Name = "labelStartStatus";
-            this.labelStartStatus.Size = new System.Drawing.Size(450, 24);
+            this.labelStartStatus.Size = new System.Drawing.Size(450, 32);
             this.labelStartStatus.TabIndex = 29;
             this.labelStartStatus.Text = "Hazır";
             this.labelStartStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
@@ -439,6 +441,18 @@ namespace MusicPlayerApp
             this.buttonGrillFish.Text = "BALIKLARI PİŞİR";
             this.buttonGrillFish.UseVisualStyleBackColor = true;
             this.buttonGrillFish.Click += new System.EventHandler(this.buttonGrillFish_Click);
+            //
+            // buttonPrepareWorms
+            //
+            this.buttonPrepareWorms.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.buttonPrepareWorms.Location = new System.Drawing.Point(210, 315);
+            this.buttonPrepareWorms.Margin = new System.Windows.Forms.Padding(2);
+            this.buttonPrepareWorms.Name = "buttonPrepareWorms";
+            this.buttonPrepareWorms.Size = new System.Drawing.Size(185, 38);
+            this.buttonPrepareWorms.TabIndex = 61;
+            this.buttonPrepareWorms.Text = "SOLUCAN HAZIRLA";
+            this.buttonPrepareWorms.UseVisualStyleBackColor = true;
+            this.buttonPrepareWorms.Click += new System.EventHandler(this.buttonPrepareWorms_Click);
             //
             // buttonFishingStart
             //
@@ -794,7 +808,7 @@ namespace MusicPlayerApp
             // labelEnergyCristal
             // 
             this.labelEnergyCristal.AutoSize = true;
-            this.labelEnergyCristal.Font = new System.Drawing.Font("Arial", 14.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.labelEnergyCristal.Font = new System.Drawing.Font("Arial", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.labelEnergyCristal.ForeColor = System.Drawing.Color.Red;
             this.labelEnergyCristal.Location = new System.Drawing.Point(163, 69);
             this.labelEnergyCristal.Name = "labelEnergyCristal";
@@ -816,7 +830,7 @@ namespace MusicPlayerApp
             // labelLevelFarmStatus
             // 
             this.labelLevelFarmStatus.AutoSize = true;
-            this.labelLevelFarmStatus.Font = new System.Drawing.Font("Arial", 14.25F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
+            this.labelLevelFarmStatus.Font = new System.Drawing.Font("Arial", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(162)));
             this.labelLevelFarmStatus.ForeColor = System.Drawing.Color.Red;
             this.labelLevelFarmStatus.Location = new System.Drawing.Point(6, 278);
             this.labelLevelFarmStatus.Name = "labelLevelFarmStatus";
@@ -1186,6 +1200,7 @@ namespace MusicPlayerApp
         private System.Windows.Forms.Label labelStartStatus;
         private System.Windows.Forms.Button buttonFishingStart;
         private System.Windows.Forms.Button buttonGrillFish;
+        private System.Windows.Forms.Button buttonPrepareWorms;
         private System.Windows.Forms.Button buttonResetSettings;
         private System.Windows.Forms.CheckBox checkBoxCloseAfterTime;
         private System.Windows.Forms.Button buttonLevelStart;

@@ -45,6 +45,9 @@ namespace MusicPlayerApp.Sources.GameHandler
         private Stopwatch standaloneGrillStopwatch;
         private bool standaloneGrillTimedOut;
         private const int MAX_STANDALONE_GRILL_SECONDS = 240;
+        private Stopwatch standaloneWormStopwatch;
+        private bool standaloneWormTimedOut;
+        private const int MAX_STANDALONE_WORM_SECONDS = 240;
 
         List<Rectangle> listWorm200;
 
@@ -205,6 +208,132 @@ namespace MusicPlayerApp.Sources.GameHandler
             }
         }
 
+        /// <summary>
+        /// Solucanları yalnızca mevcut envanterden 200'lük yığınlara birleştirir ve
+        /// 32 yığını hızlı erişim çubuğuna aktarır. Balıkçılık akışını başlatmaz.
+        /// </summary>
+        public bool PrepareWormsOnly(out string result)
+        {
+            result = "Solucan hazırlama işlemi tamamlanamadı.";
+
+            if (ThreadGlobals.isFishingStopped || ThreadGlobals.isBotPaused ||
+                !ThreadGlobals.isLevelFarmStopped || !ThreadGlobals.isEnergyCristalStopped ||
+                ThreadGlobals.IsAnyThreadActive())
+            {
+                result = "Önce çalışan bot işlemlerini durdurun.";
+                return false;
+            }
+
+            int[] settingButtonImage = screenShot.ImageArraySpecifiedArea(coordinate.RectSettingButton());
+            if (!imageObjects.CompareTwoArrayAdvanced(imageObjects.arraySettingButton,
+                settingButtonImage, ImageSensibilityLevel.SENSIBILTY_MED))
+            {
+                result = "Metin2 karakter ekranı açık olmalı.";
+                return false;
+            }
+
+            bool previousSettingButtonState = ThreadGlobals.isSettingButtonSeemed;
+            bool previousHepsiSelectedState = ThreadGlobals.isHepsiSelected;
+            ThreadGlobals.isFishingStopped = false;
+            ThreadGlobals.isSettingButtonSeemed = true;
+            ThreadGlobals.isHepsiSelected = false;
+            ThreadGlobals.isPrepareFishingStarted = true;
+            standaloneWormTimedOut = false;
+            standaloneWormStopwatch = Stopwatch.StartNew();
+
+            try
+            {
+                charThings.OpenCloseInventory(true);
+                int wormStackCount = charThings.CombineItemsTo200(imageObjects.arrayWorm200);
+
+                if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                {
+                    result = "Solucan hazırlama işlemi durduruldu.";
+                    return false;
+                }
+                if (wormStackCount < 0)
+                {
+                    result = "Solucan yığınları 200'e dönüştürülemedi.";
+                    return false;
+                }
+
+                if (wormStackCount < NEEDED_WORM200_COUNT)
+                {
+                    if (!CheckFisherShopPage())
+                    {
+                        FindFisher();
+                    }
+
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                    {
+                        result = "Solucan hazırlama işlemi durduruldu.";
+                        return false;
+                    }
+                    if (standaloneWormTimedOut || !CheckFisherShopPage())
+                    {
+                        result = standaloneWormTimedOut
+                            ? "Solucan almak için balıkçı araması zaman aşımına uğradı."
+                            : "Eksik solucanları almak için balıkçı dükkânı açılamadı.";
+                        return false;
+                    }
+
+                    BuyFiftyWormAsNeeded(wormStackCount);
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
+                    {
+                        result = "Solucan hazırlama işlemi durduruldu.";
+                        return false;
+                    }
+
+                    wormStackCount = charThings.CombineItemsTo200(imageObjects.arrayWorm200);
+                    if (wormStackCount < NEEDED_WORM200_COUNT)
+                    {
+                        result = wormStackCount < 0
+                            ? "Satın alınan solucanlar 200'lük yığınlara dönüştürülemedi."
+                            : "Solucanlar " + wormStackCount + "/" + NEEDED_WORM200_COUNT +
+                                " yığına tamamlanamadı; envanter alanını ve bakiyeyi kontrol edin.";
+                        return false;
+                    }
+                }
+
+                if (CheckFisherShopPage())
+                {
+                    CloseFisherShopPage();
+                }
+
+                if (!charThings.InsertObjectToSkillSlots(imageObjects.arrayWorm200,
+                    coordinate.RectItemSlotSizeSample(), InsertCountSetting.INSERT_COUNT_32))
+                {
+                    result = ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled
+                        ? "Solucan hazırlama işlemi durduruldu."
+                        : "32 solucan yığını hızlı erişim çubuğuna eklenemedi.";
+                    return false;
+                }
+
+                result = "32 adet 200'lük solucan hızlı erişim çubuğuna eklendi. Balıkçılık başlatılmadı.";
+                return true;
+            }
+            catch (Exception ex)
+            {
+                FileLogger.Error("Bağımsız solucan hazırlama işlemi başarısız oldu", ex);
+                result = "Solucan hazırlama sırasında hata oluştu: " + ex.Message;
+                return false;
+            }
+            finally
+            {
+                bool wasStoppedByUser = ThreadGlobals.isFishingStopped;
+                charThings.OpenCloseInventory(false);
+                ThreadGlobals.isFishingStopped = true;
+                if (!wasStoppedByUser)
+                {
+                    ThreadGlobals.isSettingButtonSeemed = previousSettingButtonState;
+                    ThreadGlobals.isHepsiSelected = previousHepsiSelectedState;
+                }
+                ThreadGlobals.isPrepareFishingStarted = false;
+                standaloneWormStopwatch = null;
+                standaloneWormTimedOut = false;
+            }
+        }
+
         private void FindFisher()
         {
             TimerGame timeGame = new TimerGame();
@@ -223,6 +352,7 @@ namespace MusicPlayerApp.Sources.GameHandler
 
             while (!CheckFisherIsThere())
             {
+                ThreadGlobals.WaitWhileBotPaused();
                 if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled)
                 {
                     ThreadGlobals.DebugThreadGloablValues();
@@ -232,6 +362,12 @@ namespace MusicPlayerApp.Sources.GameHandler
                     standaloneGrillStopwatch.Elapsed.TotalSeconds >= MAX_STANDALONE_GRILL_SECONDS)
                 {
                     standaloneGrillTimedOut = true;
+                    return;
+                }
+                if (standaloneWormStopwatch != null &&
+                    standaloneWormStopwatch.Elapsed.TotalSeconds >= MAX_STANDALONE_WORM_SECONDS)
+                {
+                    standaloneWormTimedOut = true;
                     return;
                 }
                     
@@ -505,6 +641,8 @@ namespace MusicPlayerApp.Sources.GameHandler
 
                 for (int i = 0; i < neededWorms * 4; i++)
                 {
+                    ThreadGlobals.WaitWhileBotPaused();
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return;
                     inputGame.MouseMoveAndPressRight(coordinate.PointFisherShopFiftyWorm().X,
                        coordinate.PointFisherShopFiftyWorm().Y);
 
