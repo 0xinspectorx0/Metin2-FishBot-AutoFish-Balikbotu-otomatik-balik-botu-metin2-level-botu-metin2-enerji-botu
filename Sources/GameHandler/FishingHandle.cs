@@ -49,6 +49,7 @@ namespace MusicPlayerApp.Sources.GameHandler
 
         private bool isAltinTonDetected = false;
         private bool isHandlePinkFuncWorked = false;
+        private bool isInventoryFullRecoveryHandled;
 
         static int[] arrayStoredFishValue = new int[6];
         int[] arrayReferenceWormVal;
@@ -614,13 +615,39 @@ namespace MusicPlayerApp.Sources.GameHandler
             int[] targetPinkChat = gameImages.RecordWantedColorIntArray(ColorGame.CHAT_PINK_COLOR,
                 screenshot.ImageArraySpecifiedArea(coordinates.RectChatArea()));
 
-            if (gameImages.compareTwoArrayQuickly(gameImages.arrayPinkYerYok,
-                targetPinkChat))
+            bool noInventorySpaceChatDetected = gameImages.compareTwoArrayQuickly(
+                gameImages.arrayPinkYerYok, targetPinkChat);
+
+            if (isInventoryFullRecoveryHandled)
+            {
+                // The chat line or the on-screen warning can linger after the recovery.
+                // Keep fishing paused until both have cleared, without restarting preparation.
+                if (noInventorySpaceChatDetected || IsInventoryFullWarningVisible())
                 {
-                isHandlePinkFuncWorked = true;
-                ThrowWorm();
-                prepareFish.StartPrepareFishing();
+                    isHandlePinkFuncWorked = true;
+                    return;
                 }
+                isInventoryFullRecoveryHandled = false;
+            }
+
+            if (noInventorySpaceChatDetected)
+            {
+                isHandlePinkFuncWorked = true;
+                if (IsInventoryFullWarningVisible())
+                {
+                    DebugPfCnsl.println("Envanter dolu görseli algılandı; balık pişirme hazırlığı başlatılıyor");
+                    isInventoryFullRecoveryHandled = true;
+                    // This runs synchronously on the fishing thread: no more fishing input
+                    // occurs until fish preparation/grilling returns.
+                    prepareFish.StartPrepareFishing();
+                }
+                else
+                {
+                    // Keep the previous recovery path for the existing pink chat notice.
+                    ThrowWorm();
+                    prepareFish.StartPrepareFishing();
+                }
+            }
 
             if(gameImages.compareTwoArrayQuickly(gameImages.arrayPinkCanNotFish
                 , targetPinkChat))
@@ -638,6 +665,16 @@ namespace MusicPlayerApp.Sources.GameHandler
                 prepareFish.GoToFishPlace();
             }
 
+        }
+
+        private bool IsInventoryFullWarningVisible()
+        {
+            Rectangle warningSample = new Rectangle(0, 0, 81, 13);
+            Rectangle[] matches = gameImages.FindAllImagesOnScreen(
+                gameImages.arrayInventoryFullWarning,
+                warningSample,
+                coordinates.RectMetin2GameScreen());
+            return matches != null && matches.Length > 0;
         }
 
         public void ThrowWorm()

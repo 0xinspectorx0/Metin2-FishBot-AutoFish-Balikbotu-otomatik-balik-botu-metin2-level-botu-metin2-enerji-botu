@@ -62,6 +62,7 @@ namespace MusicPlayerApp.Sources.ImageHandle
         public int[] arrayPageFour { get; private set; }
         public int[] arrayInventoryPageThreeTab { get; private set; }
         public int[] arrayInventoryPageFourTab { get; private set; }
+        public int[] arrayInventoryFullWarning { get; private set; }
         public int[] arrayBalikciAraEkran { get; private set; }
         public int[] arrayFullDialogInFisherShop { get; private set; }
         public int[] arrayKampIcon { get; private set; }
@@ -158,6 +159,7 @@ namespace MusicPlayerApp.Sources.ImageHandle
             arrayPageFour = convertBitMapToIntArray(ImagePathNames.pageFourFileName, PathWayStruct.PATH_IMAGE);
             arrayInventoryPageThreeTab = convertBitMapToIntArray(ImagePathNames.inventoryPageThreeTabFileName, PathWayStruct.PATH_IMAGE);
             arrayInventoryPageFourTab = convertBitMapToIntArray(ImagePathNames.inventoryPageFourTabFileName, PathWayStruct.PATH_IMAGE);
+            arrayInventoryFullWarning = convertBitMapToIntArray(ImagePathNames.inventoryFullWarningFileName, PathWayStruct.PATH_IMAGE);
             arrayBalikciAraEkran = convertBitMapToIntArray(ImagePathNames.balikciAraEkranFileName, PathWayStruct.PATH_IMAGE);
             arrayFullDialogInFisherShop = convertBitMapToIntArray(ImagePathNames.fullEnvanterFileName, PathWayStruct.PATH_IMAGE);
             arrayKampIcon = convertBitMapToIntArray(ImagePathNames.kampIconFileName, PathWayStruct.PATH_IMAGE);
