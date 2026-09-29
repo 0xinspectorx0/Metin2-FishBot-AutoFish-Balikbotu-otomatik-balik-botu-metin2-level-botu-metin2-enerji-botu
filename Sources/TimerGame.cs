@@ -38,6 +38,9 @@ namespace MusicPlayerApp.Sources
         private static DateTime? botPauseStartedUtc;
         private static TimeSpan accumulatedBotPauseTime = TimeSpan.Zero;
 
+        [ThreadStatic]
+        private static int fishCookingSlowdownScopeDepth;
+
         /// <summary>Bot duraklatılınca tüm TimerGame sayaçlarının saatini dondurur.</summary>
         public static void PauseBotTimers()
         {
@@ -337,12 +340,40 @@ namespace MusicPlayerApp.Sources
 
         #region Bekleme (Sleep) yardımcıları
 
+        /// <summary>Balık pişirme akışındaki beklemeleri yavaşlatmaya başlar.</summary>
+        public static void BeginFishCookingSlowdown()
+        {
+            fishCookingSlowdownScopeDepth++;
+        }
+
+        /// <summary>Balık pişirme yavaşlatma kapsamını kapatır.</summary>
+        public static void EndFishCookingSlowdown()
+        {
+            if (fishCookingSlowdownScopeDepth > 0) fishCookingSlowdownScopeDepth--;
+        }
+
         /// <summary>
         /// <see cref="MakeRandomValue"/>(min,max) kadar milisaniye bekler.
+        /// Balık pişirme kapsamındaysa seçilen süre ayrıca 2-4 katına çıkarılır.
         /// </summary>
         public static void SleepRandom(int minValue, int maxValue)
         {
-            SleepActiveTime(MakeRandomValue(minValue, maxValue));
+            SleepActionTime(MakeRandomValue(minValue, maxValue));
+        }
+
+        /// <summary>İşlem gecikmesi; yalnızca balık pişirme kapsamındayken hız %25-%50'ye indirilir.</summary>
+        public static void SleepActionTime(int milliseconds)
+        {
+            if (milliseconds <= 0) return;
+
+            if (fishCookingSlowdownScopeDepth > 0)
+            {
+                int speedPercent = MakeRandomValue(25, 51);
+                long scaledMilliseconds = ((long)milliseconds * 100L + speedPercent - 1) / speedPercent;
+                milliseconds = (int)Math.Min(int.MaxValue, scaledMilliseconds);
+            }
+
+            SleepActiveTime(milliseconds);
         }
 
         /// <summary>Duraklatma sırasında süre ilerletmeden milisaniye bekler.</summary>

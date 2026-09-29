@@ -53,11 +53,11 @@ namespace MusicPlayerApp.Sources
                 // Mouse'un sol düğmesini basılı tut
                 mouse_event(0x0002, (uint)x, (uint)y, 0, 0);
                 // Kısa bir süre bekle
-                Thread.Sleep(5);
+                TimerGame.SleepActionTime(5);
                 // Mouse'un sol düğmesini serbest bırak
                 mouse_event(0x0004, (uint)x, (uint)y, 0, 0);
 
-                Thread.Sleep(5);
+                TimerGame.SleepActionTime(5);
 
                 
               }
@@ -72,7 +72,7 @@ namespace MusicPlayerApp.Sources
                 // Mouse'un sol düğmesini basılı tut
                 mouse_event(0x0002, (uint)x, (uint)y, 0, 0);
                 // Kısa bir süre bekle
-                Thread.Sleep(5);
+                TimerGame.SleepActionTime(5);
                 // Mouse'un sol düğmesini serbest bırak
                 mouse_event(0x0004, (uint)x, (uint)y, 0, 0);
 
@@ -91,7 +91,7 @@ namespace MusicPlayerApp.Sources
                 // Mouse'un sol düğmesini basılı tut
                 mouse_event(0x0002, (uint)0, (uint)0, 0, 0);
                 // Kısa bir süre bekle
-                Thread.Sleep(5);
+                TimerGame.SleepActionTime(5);
 
             }
         }
@@ -125,7 +125,7 @@ namespace MusicPlayerApp.Sources
                 // Fare imlecini belirtilen konuma taşı
                 SetCursorPos(x , y);
                 //sim.Mouse.MoveMouseTo(x, y);
-                Thread.Sleep(5);
+                TimerGame.SleepActionTime(5);
             }
         }
 
@@ -161,7 +161,7 @@ namespace MusicPlayerApp.Sources
                 // Mouse'un sağ düğmesini basılı tut
                 mouse_event(MOUSEEVENTF_RIGHTDOWN, (uint)0, (uint)0, 0, 0);
                 // Kısa bir süre bekle
-                Thread.Sleep(TimerGame.MakeRandomValue(10, 20));
+                TimerGame.SleepActionTime(TimerGame.MakeRandomValue(10, 20));
                 // Mouse'un sağ düğmesini serbest bırak
                 mouse_event(MOUSEEVENTF_RIGHTUP, (uint)0, (uint)0, 0, 0);
                 TimerGame.SleepRandom(40, 60);

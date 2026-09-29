@@ -35,6 +35,8 @@ namespace MusicPlayerApp.Sources.GameHandler
 
         /// <summary>Kızartma işleminin azami deneme sayısı (sonsuz döngü koruması).</summary>
         private const int MAX_GRILL_RETRY = 8;
+        private const int FIRST_CAMPFIRE_REFRESH_AFTER_SECONDS = 25;
+        private const int CAMPFIRE_REFRESH_PAUSE_MILLISECONDS = 10000;
 
         /// <summary>CheckFisherIsThere özyineleme derinliği sayacı.</summary>
         private static int fisherSearchDepth = 0;
@@ -50,6 +52,21 @@ namespace MusicPlayerApp.Sources.GameHandler
         private const int MAX_STANDALONE_WORM_SECONDS = 240;
         private const int MAX_STANDALONE_ATMK_RESTARTS = 8;
         private bool standaloneAtmkRestartRequested;
+
+        private sealed class GrillFireRefreshSchedule
+        {
+            public Rectangle CurrentFire { get; set; }
+            public Stopwatch FirstFireStopwatch { get; private set; }
+            public bool FirstFireRefreshHandled { get; set; }
+            public bool KeepCharacterInPlace { get; private set; }
+
+            public GrillFireRefreshSchedule(Rectangle firstFire, bool keepCharacterInPlace)
+            {
+                CurrentFire = firstFire;
+                KeepCharacterInPlace = keepCharacterInPlace;
+                FirstFireStopwatch = Stopwatch.StartNew();
+            }
+        }
 
         private sealed class FishIconForGrilling
         {
@@ -90,7 +107,15 @@ namespace MusicPlayerApp.Sources.GameHandler
             DebugPfCnsl.println("StartPrepareFishing is running");
             ThreadGlobals.isPrepareFishingStarted = true;
             FindFisher();
-            GrillFishingHandle();
+            TimerGame.BeginFishCookingSlowdown();
+            try
+            {
+                GrillFishingHandle();
+            }
+            finally
+            {
+                TimerGame.EndFishCookingSlowdown();
+            }
             WormsHandle();
             ThreadGlobals.isPrepareFishingStarted = false;
         }
@@ -143,6 +168,7 @@ namespace MusicPlayerApp.Sources.GameHandler
             ThreadGlobals.isSettingButtonSeemed = true;
             ThreadGlobals.isHepsiSelected = false;
             ThreadGlobals.isPrepareFishingStarted = true;
+            TimerGame.BeginFishCookingSlowdown();
 
             try
             {
@@ -296,6 +322,7 @@ namespace MusicPlayerApp.Sources.GameHandler
             }
             finally
             {
+                TimerGame.EndFishCookingSlowdown();
                 bool wasStoppedByUser = ThreadGlobals.isFishingStopped;
                 ThreadGlobals.isFishingStopped = true;
                 if (!wasStoppedByUser)
@@ -1097,12 +1124,15 @@ namespace MusicPlayerApp.Sources.GameHandler
             Rectangle kampAtesiGreen, Rectangle[][] pageThree = null, Rectangle[][] pageFour = null,
             bool keepCharacterInPlace = false)
         {
+            GrillFireRefreshSchedule fireSchedule = new GrillFireRefreshSchedule(
+                kampAtesiGreen, keepCharacterInPlace);
+
             for (int attempt = 0; attempt < MAX_GRILL_RETRY; attempt++)
             {
                 if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled || standaloneGrillTimedOut)
                     return false;
 
-                if (GrillFishes(pageOne, pageTwo, kampAtesiGreen, pageThree, pageFour))
+                if (GrillFishes(pageOne, pageTwo, fireSchedule, pageThree, pageFour))
                 {
                     return true;
                 }
@@ -1138,12 +1168,114 @@ namespace MusicPlayerApp.Sources.GameHandler
                     : FireKampAtesi();
                 if (newFire != Rectangle.Empty)
                 {
-                    kampAtesiGreen = newFire;
+                    fireSchedule.CurrentFire = newFire;
                 }
             }
 
             FileLogger.Warning("Kızartma " + MAX_GRILL_RETRY + " denemede tamamlanamadı, işleme devam ediliyor");
             return false;
+        }
+
+        private bool EnsureScheduledCampfireRefresh(GrillFireRefreshSchedule fireSchedule,
+            TimerGame grillTimer, out bool fireRefreshed)
+        {
+            fireRefreshed = false;
+            if (fireSchedule.FirstFireRefreshHandled ||
+                fireSchedule.FirstFireStopwatch.Elapsed.TotalSeconds < FIRST_CAMPFIRE_REFRESH_AFTER_SECONDS)
+            {
+                return true;
+            }
+
+            fireSchedule.FirstFireRefreshHandled = true;
+            FileLogger.Info("İlk kamp ateşinden 25 saniye geçti; bot işlemleri 10 saniyeliğine duraklatılıyor.");
+            if (!PauseAllBotOperationsForCampfireRefresh()) return false;
+            if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
+
+            if (!CheckFisherShopPage())
+            {
+                if (fireSchedule.KeepCharacterInPlace)
+                {
+                    string fisherShopError;
+                    if (!OpenFisherShopAtCurrentPosition(out fisherShopError))
+                    {
+                        FileLogger.Warning(fisherShopError);
+                        return false;
+                    }
+                }
+                else
+                {
+                    FindFisher();
+                }
+            }
+
+            if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled || !CheckFisherShopPage())
+                return false;
+
+            BuyKampAtasiFromFisher(fireSchedule.KeepCharacterInPlace);
+            if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
+
+            Rectangle newFire = fireSchedule.KeepCharacterInPlace
+                ? FireKampAtesiAtCurrentPosition()
+                : FireKampAtesi();
+            if (newFire == Rectangle.Empty)
+            {
+                FileLogger.Warning("10 saniyelik duraklamadan sonra yeni kamp ateşi yakılamadı; pişirme durduruluyor.");
+                return false;
+            }
+
+            fireSchedule.CurrentFire = newFire;
+            grillTimer.SetStartedSecondTime();
+            fireRefreshed = true;
+            FileLogger.Info("Yeni kamp ateşi yakıldı; balık pişirmeye devam ediliyor.");
+            return true;
+        }
+
+        private bool PauseAllBotOperationsForCampfireRefresh()
+        {
+            bool pauseStartedByThisMethod = false;
+            if (!ThreadGlobals.isBotPaused)
+            {
+                pauseStartedByThisMethod = ThreadGlobals.PauseBot();
+                if (pauseStartedByThisMethod) TimerGame.PauseBotTimers();
+            }
+
+            if (!ThreadGlobals.isBotPaused && !pauseStartedByThisMethod)
+            {
+                FileLogger.Warning("Kamp ateşi yenilemesi için bot duraklatılamadı.");
+                return false;
+            }
+
+            Stopwatch pauseTimer = Stopwatch.StartNew();
+            try
+            {
+                while (pauseTimer.ElapsedMilliseconds < CAMPFIRE_REFRESH_PAUSE_MILLISECONDS)
+                {
+                    if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
+
+                    // Ctrl+P ile duraklama erken kaldırılırsa, istenen 10 saniye tamamlanana
+                    // kadar bot işlerini yeniden duraklat.
+                    if (!ThreadGlobals.isBotPaused)
+                    {
+                        if (!ThreadGlobals.PauseBot()) return false;
+                        TimerGame.PauseBotTimers();
+                        pauseStartedByThisMethod = true;
+                    }
+
+                    int remaining = (int)Math.Min(100L,
+                        CAMPFIRE_REFRESH_PAUSE_MILLISECONDS - pauseTimer.ElapsedMilliseconds);
+                    if (remaining > 0) System.Threading.Thread.Sleep(remaining);
+                }
+
+                return !ThreadGlobals.isFishingStopped && !ThreadGlobals.isCharKilled;
+            }
+            finally
+            {
+                if (pauseStartedByThisMethod)
+                {
+                    TimerGame.ResumeBotTimers();
+                    ThreadGlobals.ResumeBot();
+                }
+            }
         }
 
         /// <summary>Bir sayfadaki tüm balık türlerinin toplam adetini sayar.</summary>
@@ -1165,7 +1297,7 @@ namespace MusicPlayerApp.Sources.GameHandler
         }
 
         private bool GrillFishes(Rectangle[][] rectPageOne, Rectangle[][] rectPageTwo,
-            Rectangle kampAtesiGreen, Rectangle[][] rectPageThree = null, Rectangle[][] rectPageFour = null)
+            GrillFireRefreshSchedule fireSchedule, Rectangle[][] rectPageThree = null, Rectangle[][] rectPageFour = null)
         {
             DebugPfCnsl.println("GrillFishes func is called");
             TimerGame timerGrillFishes = new TimerGame();
@@ -1198,6 +1330,14 @@ namespace MusicPlayerApp.Sources.GameHandler
                                 slotImageAfterGrill, ImageSensibilityLevel.SENSIBILTY_HIGH))
                             {
                                 if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
+                                bool fireRefreshed;
+                                if (!EnsureScheduledCampfireRefresh(fireSchedule, timerGrillFishes, out fireRefreshed))
+                                    return false;
+                                if (fireRefreshed)
+                                {
+                                    charThings.OpenCloseInventory(true);
+                                    charThings.ClickWantedInventoryPage((InventoryPage)pageIndex);
+                                }
                                 if (!timerGrillFishes.CheckDelayTimeInSecond(60))
                                 {
                                     DebugPfCnsl.println("GrillFishes func CheckDelayTimeSecond else statement started");
@@ -1205,8 +1345,8 @@ namespace MusicPlayerApp.Sources.GameHandler
                                 }
 
                                 inputGame.MouseMoveAndPressLeft(rectFish.X + rectFish.Width / 2, rectFish.Y);
-                                inputGame.MouseMoveAndPressLeft(kampAtesiGreen.X + kampAtesiGreen.Width / 2,
-                                    kampAtesiGreen.Y + kampAtesiGreen.Height / 2);
+                                inputGame.MouseMoveAndPressLeft(fireSchedule.CurrentFire.X + fireSchedule.CurrentFire.Width / 2,
+                                    fireSchedule.CurrentFire.Y + fireSchedule.CurrentFire.Height / 2);
                                 TimerGame.SleepRandom(200, 400);
 
                                 if (DismissAtmkConfirmation()) return false;
@@ -1241,6 +1381,14 @@ namespace MusicPlayerApp.Sources.GameHandler
                         for (; xGrillFishes < 5; xGrillFishes++)
                         {
                             if (ThreadGlobals.isFishingStopped || ThreadGlobals.isCharKilled) return false;
+                            bool fireRefreshed;
+                            if (!EnsureScheduledCampfireRefresh(fireSchedule, timerGrillFishes, out fireRefreshed))
+                                return false;
+                            if (fireRefreshed)
+                            {
+                                charThings.OpenCloseInventory(true);
+                                charThings.ClickWantedInventoryPage((InventoryPage)(pageGrillFisher - 1));
+                            }
                             if (!timerGrillFishes.CheckDelayTimeInSecond(60))
                             {
                                 isGrillFishesFailed = true;
@@ -1258,8 +1406,8 @@ namespace MusicPlayerApp.Sources.GameHandler
                             {
                                 inputGame.MouseMoveAndPressLeft(rectScanSlot.X + rectScanSlot.Width / 2,
                                     rectScanSlot.Y);
-                                inputGame.MouseMoveAndPressLeft(kampAtesiGreen.X + kampAtesiGreen.Width / 2,
-                                    kampAtesiGreen.Y + kampAtesiGreen.Height / 2);
+                                inputGame.MouseMoveAndPressLeft(fireSchedule.CurrentFire.X + fireSchedule.CurrentFire.Width / 2,
+                                    fireSchedule.CurrentFire.Y + fireSchedule.CurrentFire.Height / 2);
                                 TimerGame.SleepRandom(200, 400);
 
                                 if (DismissAtmkConfirmation()) return false;

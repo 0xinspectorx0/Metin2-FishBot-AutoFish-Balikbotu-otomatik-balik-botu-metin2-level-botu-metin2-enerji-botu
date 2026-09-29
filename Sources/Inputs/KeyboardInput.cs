@@ -53,9 +53,9 @@ namespace MusicPlayerApp.Sources
         {
             ThreadGlobals.WaitWhileBotPaused();
             KeyDown(keyCode);
-            Thread.Sleep(TimerGame.MakeRandomValue(40, 60));
+            TimerGame.SleepActionTime(TimerGame.MakeRandomValue(40, 60));
             KeyRelease(keyCode);
-            TimerGame.SleepActiveTime(TimerGame.MakeRandomValue(30, 50));
+            TimerGame.SleepActionTime(TimerGame.MakeRandomValue(30, 50));
 
         }
 
