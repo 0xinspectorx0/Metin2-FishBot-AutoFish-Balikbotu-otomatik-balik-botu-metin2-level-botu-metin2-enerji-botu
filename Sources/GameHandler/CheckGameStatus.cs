@@ -285,13 +285,13 @@ namespace MusicPlayerApp.Sources.GameHandler
                     WaitWhileEntryScreen(ENTRY_RECHECK_SECONDS);
                     continue;
                 }
-                TimerGame.SleepActiveTime(500);
+                TimerGame.SleepActionTime(500);
 
                 int selectedChannel = TimerGame.MakeRandomValue(1, ENTRY_CHANNEL_COUNT + 1);
                 Point channelPoint = coordinates.PointChannel(selectedChannel);
                 inputGame.MouseMoveAndPressLeft(channelPoint.X, channelPoint.Y);
                 FileLogger.Info("Rastgele CH" + selectedChannel + " seçildi");
-                TimerGame.SleepActiveTime(500);
+                TimerGame.SleepActionTime(500);
 
                 TryClickTamamButtonTemplate();
                 WaitForChannelConnection();
@@ -450,7 +450,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                 return 0;
             }
 
-            TimerGame.SleepActiveTime(500);
+            TimerGame.SleepActionTime(500);
             if (ThreadGlobals.CheckGameIsStopped() || ThreadGlobals.isPausedTheGame) return 0;
 
             bool hasFullChannel;
@@ -473,7 +473,7 @@ namespace MusicPlayerApp.Sources.GameHandler
         {
             Point channelPoint = coordinates.PointChannel(channelNumber);
             inputGame.MouseMoveAndPressLeft(channelPoint.X, channelPoint.Y);
-            TimerGame.SleepActiveTime(250);
+            TimerGame.SleepActionTime(250);
 
             Point okButton = coordinates.PointOkButton();
             inputGame.MouseMoveAndPressLeft(okButton.X, okButton.Y);
