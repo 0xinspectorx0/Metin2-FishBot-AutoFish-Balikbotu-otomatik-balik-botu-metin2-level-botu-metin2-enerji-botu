@@ -471,7 +471,7 @@ namespace MusicPlayerApp.Sources.GameHandler
                                 // HATA DUZELTILDI: ikinci parametre yanlislikla X olarak
                                 // gonderiliyordu (rectFish.X + x, rectFish.X + x).
                                 inputs.MouseClickQuickly(rectFish.X + x, rectFish.Y + y);
-                                TimerGame.SleepActionTime(TimerGame.MakeRandomValue(200, 400));
+                                TimerGame.SleepActiveTime(TimerGame.MakeRandomValue(200, 400));
                                 storeAttempt = 0;
                             }
 

@@ -342,20 +342,7 @@ namespace MusicPlayerApp.Sources
         /// </summary>
         public static void SleepRandom(int minValue, int maxValue)
         {
-            SleepActionTime(MakeRandomValue(minValue, maxValue));
-        }
-
-        /// <summary>
-        /// Temel işlem beklemesini rastgele %25-%50 hızda uygular (2-4 kat süre).
-        /// Zamanlayıcı/geri sayım beklemeleri bu yardımcıyı kullanmaz.
-        /// </summary>
-        public static void SleepActionTime(int milliseconds)
-        {
-            if (milliseconds <= 0) return;
-
-            int speedPercent = MakeRandomValue(25, 51);
-            long scaledMilliseconds = ((long)milliseconds * 100L + speedPercent - 1) / speedPercent;
-            SleepActiveTime((int)Math.Min(int.MaxValue, scaledMilliseconds));
+            SleepActiveTime(MakeRandomValue(minValue, maxValue));
         }
 
         /// <summary>Duraklatma sırasında süre ilerletmeden milisaniye bekler.</summary>
